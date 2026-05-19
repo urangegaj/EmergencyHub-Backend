@@ -1,0 +1,30 @@
+# Build output
+bin/
+obj/
+
+# IDE
+.idea/
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# NuGet
+*.nupkg
+.nuget/
+packages/
+
+# dotnet publish / tools
+publish/
+.dotnet/
+.tool-manifest
+
+# Environment / secrets
+.env
+.env.*
+appsettings.Local.json
+appsettings.*.Local.json
+
+# OS
+.DS_Store
+Thumbs.db
