@@ -24,6 +24,9 @@ publish/
 .env.*
 appsettings.Local.json
 appsettings.*.Local.json
+infra/auth_private.pem
+infra/auth_public.pem
+src/AuthService/appsettings.Development.json
 
 # OS
 .DS_Store
