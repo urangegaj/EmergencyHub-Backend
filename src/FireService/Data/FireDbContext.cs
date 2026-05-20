@@ -10,6 +10,23 @@ public class FireDbContext(DbContextOptions<FireDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<FireCase>(entity =>
+        {
+            entity.ToTable("fire_cases");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CityId);
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.CreatedAt).HasColumnType("timestamptz");
+            entity.Property(e => e.UpdatedAt).HasColumnType("timestamptz");
+            entity.Property(e => e.ClosedAt).HasColumnType("timestamptz");
+        });
+
+        modelBuilder.Entity<FireUnit>(entity =>
+        {
+            entity.ToTable("fire_units");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CityId);
+            entity.Property(e => e.Status).HasConversion<int>();
+        });
     }
 }

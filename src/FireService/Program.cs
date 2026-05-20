@@ -31,6 +31,14 @@ builder.Services.AddSingleton<IProducer<string, string>>(_ =>
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FireDbContext>();
+    await db.Database.MigrateAsync();
+    if (app.Environment.IsDevelopment())
+        await DbSeeder.SeedAsync(db);
+}
+
 app.MapGrpcService<FireGrpcService>();
 app.MapGet("/", () => "FireService gRPC");
 
