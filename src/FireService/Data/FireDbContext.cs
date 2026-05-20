@@ -1,11 +1,12 @@
+using FireService.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace FireService.Data;
 
 public class FireDbContext(DbContextOptions<FireDbContext> options) : DbContext(options)
 {
-    // DbSets for Fire domain entities will be added here
-    // e.g. public DbSet<Incident> Incidents => Set<Incident>();
+    public DbSet<FireCase> Cases => Set<FireCase>();
+    public DbSet<FireUnit> Units => Set<FireUnit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

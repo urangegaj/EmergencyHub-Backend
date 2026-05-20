@@ -1,5 +1,7 @@
+using Confluent.Kafka;
 using FireService.Data;
 using FireService.Kafka;
+using FireService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,8 +20,18 @@ builder.Services.AddDbContext<FireDbContext>(options =>
 builder.Services.Configure<KafkaSettings>(
     builder.Configuration.GetSection(KafkaSettings.SectionName));
 
+builder.Services.AddSingleton<IProducer<string, string>>(_ =>
+{
+    var config = new ProducerConfig
+    {
+        BootstrapServers = builder.Configuration["Kafka:BootstrapServers"]
+    };
+    return new ProducerBuilder<string, string>(config).Build();
+});
+
 var app = builder.Build();
 
+app.MapGrpcService<FireGrpcService>();
 app.MapGet("/", () => "FireService gRPC");
 
 app.Run();
