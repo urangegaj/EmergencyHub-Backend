@@ -115,7 +115,7 @@ public static class AuthRoutes
     };
 }
 
-record RegisterBody(string Email, string Password, string Role, string FirstName, string LastName, int CityId, string? Department, string? Phone);
+record RegisterBody(string Email, string Password, string Role, string FirstName, string LastName, string CityId, string? Department, string? Phone);
 record LoginBody(string Email, string Password);
 record RefreshBody(string RefreshToken);
 record LogoutBody(string RefreshToken);

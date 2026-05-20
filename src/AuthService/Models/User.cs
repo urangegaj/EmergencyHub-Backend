@@ -4,11 +4,11 @@ namespace AuthService.Models;
 
 public class User
 {
-    public int Id { get; set; }
-    public int CityId { get; set; }
+    public Guid Id { get; set; }
+    public Guid CityId { get; set; }
     public string Email { get; set; } = null!;
     public string PasswordHash { get; set; } = null!;
-    public int RoleId { get; set; }
+    public Guid RoleId { get; set; }
     public DepartmentType? Department { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

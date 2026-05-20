@@ -36,9 +36,12 @@ public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, Tok
         var dbRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == request.Role)
             ?? throw new RpcException(new Status(StatusCode.NotFound, $"Role '{request.Role}' not seeded."));
 
+        if (!Guid.TryParse(request.CityId, out var cityId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "city_id must be a valid GUID."));
+
         var user = new User
         {
-            CityId = request.CityId,
+            CityId = cityId,
             Email = request.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             RoleId = dbRole.Id,
@@ -56,7 +59,7 @@ public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, Tok
         });
         await db.SaveChangesAsync();
 
-        return new RegisterResponse { UserId = user.Id };
+        return new RegisterResponse { UserId = user.Id.ToString() };
     }
 
     public override async Task<LoginResponse> Login(LoginRequest request, ServerCallContext context)
@@ -70,14 +73,14 @@ public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, Tok
             throw new RpcException(new Status(StatusCode.Unauthenticated, "Invalid credentials."));
 
         var refreshToken = GenerateRefreshToken();
-        await _cache.StringSetAsync(RefreshKey(refreshToken), user.Id, RefreshTokenTtl);
+        await _cache.StringSetAsync(RefreshKey(refreshToken), user.Id.ToString(), RefreshTokenTtl);
 
         var response = new LoginResponse
         {
             AccessToken = tokens.IssueAccessToken(user),
             RefreshToken = refreshToken,
-            UserId = user.Id,
-            CityId = user.CityId,
+            UserId = user.Id.ToString(),
+            CityId = user.CityId.ToString(),
             Role = user.Role.Name
         };
 
@@ -92,10 +95,9 @@ public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, Tok
         var key = RefreshKey(request.RefreshToken);
         var stored = await _cache.StringGetAsync(key);
 
-        if (!stored.HasValue || !int.TryParse(stored, out var userId))
+        if (!stored.HasValue || !Guid.TryParse(stored, out var userId))
             throw new RpcException(new Status(StatusCode.Unauthenticated, "Invalid or expired refresh token."));
 
-        // Single-use rotation: delete old token before issuing new one
         await _cache.KeyDeleteAsync(key);
 
         var user = await db.Users
@@ -104,14 +106,14 @@ public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, Tok
             ?? throw new RpcException(new Status(StatusCode.NotFound, "User not found."));
 
         var newRefreshToken = GenerateRefreshToken();
-        await _cache.StringSetAsync(RefreshKey(newRefreshToken), user.Id, RefreshTokenTtl);
+        await _cache.StringSetAsync(RefreshKey(newRefreshToken), user.Id.ToString(), RefreshTokenTtl);
 
         var response = new LoginResponse
         {
             AccessToken = tokens.IssueAccessToken(user),
             RefreshToken = newRefreshToken,
-            UserId = user.Id,
-            CityId = user.CityId,
+            UserId = user.Id.ToString(),
+            CityId = user.CityId.ToString(),
             Role = user.Role.Name
         };
 

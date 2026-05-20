@@ -19,11 +19,11 @@ message RegisterRequest {
   string last_name = 5;
   optional string department = 6;
   optional string phone = 7;
-  int32 city_id = 8;
+  string city_id = 8;
 }
 
 message RegisterResponse {
-  int32 user_id = 1;
+  string user_id = 1;
 }
 
 message LoginRequest {
@@ -34,8 +34,8 @@ message LoginRequest {
 message LoginResponse {
   string access_token = 1;
   string refresh_token = 2;
-  int32 user_id = 3;
-  int32 city_id = 4;
+  string user_id = 3;
+  string city_id = 4;
   string role = 5;
   optional string department = 6;
 }

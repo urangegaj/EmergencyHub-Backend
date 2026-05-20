@@ -11,8 +11,8 @@ public class TenantContextMiddleware(RequestDelegate next)
         if (context.User.Identity?.IsAuthenticated == true)
         {
             var claims = context.User.Claims;
-            var userId = int.Parse(claims.First(c => c.Type == ClaimNames.UserId).Value);
-            var cityId = int.Parse(claims.First(c => c.Type == ClaimNames.CityId).Value);
+            var userId = Guid.Parse(claims.First(c => c.Type == ClaimNames.UserId).Value);
+            var cityId = Guid.Parse(claims.First(c => c.Type == ClaimNames.CityId).Value);
             var role = claims.First(c => c.Type == ClaimNames.Role).Value;
             var department = claims.FirstOrDefault(c => c.Type == ClaimNames.Department)?.Value;
 
