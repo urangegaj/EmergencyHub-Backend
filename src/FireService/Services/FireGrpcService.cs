@@ -75,7 +75,7 @@ public class FireGrpcService(FireDbContext db, IProducer<string, string> produce
         var newStatus = (DomainFireCaseStatus)request.Status;
 
         var validTransition =
-            (fireCase.Status == DomainFireCaseStatus.OPEN     && newStatus == DomainFireCaseStatus.IN_PROGRESS) ||
+            (fireCase.Status == DomainFireCaseStatus.OPEN && newStatus == DomainFireCaseStatus.IN_PROGRESS) ||
             (fireCase.Status == DomainFireCaseStatus.IN_PROGRESS && newStatus == DomainFireCaseStatus.CLOSED);
 
         if (!validTransition)
@@ -112,17 +112,17 @@ public class FireGrpcService(FireDbContext db, IProducer<string, string> produce
             }
         }
 
-        fireCase.Status    = newStatus;
+        fireCase.Status = newStatus;
         fireCase.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(context.CancellationToken);
 
         var payload = JsonSerializer.Serialize(new
         {
-            emergency_id     = fireCase.EmergencyId.ToString(),
-            case_id          = fireCase.Id.ToString(),
-            city_id          = fireCase.CityId.ToString(),
-            status           = newStatus.ToString(),
+            emergency_id = fireCase.EmergencyId.ToString(),
+            case_id = fireCase.Id.ToString(),
+            city_id = fireCase.CityId.ToString(),
+            status = newStatus.ToString(),
             assigned_unit_id = fireCase.AssignedUnitId?.ToString()
         });
 
