@@ -39,6 +39,9 @@ builder.Services.AddGrpcClient<PoliceService.Police.PoliceClient>(o =>
 builder.Services.AddGrpcClient<FireService.Fire.FireClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:FireService"]!));
 
+builder.Services.AddGrpcClient<MedicalService.Medical.MedicalClient>(o =>
+    o.Address = new Uri(builder.Configuration["Services:MedicalService"]!));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -78,5 +81,6 @@ app.UseMiddleware<TenantContextMiddleware>();
 app.MapAuthRoutes();
 app.MapFireRoutes();
 app.MapPoliceRoutes();
+app.MapMedicalRoutes();
 
 app.Run();
