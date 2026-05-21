@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+option csharp_namespace = "MedicalService";
+
+package medical;
+
+enum MedicalCaseStatus {
+  OPEN = 0;
+  IN_PROGRESS = 1;
+  CLOSED = 2;
+}
+
+enum MedicalUnitStatus {
+  AVAILABLE = 0;
+  DEPLOYED = 1;
+  OUT_OF_SERVICE = 2;
+}
+
+service Medical {
+  rpc GetCases (GetCasesRequest) returns (GetCasesResponse);
+  rpc GetCase (GetCaseRequest) returns (MedicalCaseResponse);
+  rpc UpdateCase (UpdateCaseRequest) returns (MedicalCaseResponse);
+  rpc GetUnits (GetUnitsRequest) returns (GetUnitsResponse);
+  rpc UpdateUnitStatus (UpdateUnitStatusRequest) returns (MedicalUnitResponse);
+}
+
+message GetCasesRequest {
+  optional MedicalCaseStatus status = 1;
+}
+
+message GetCasesResponse {
+  repeated MedicalCaseResponse cases = 1;
+}
+
+message GetCaseRequest {
+  string emergency_id = 1;
+}
+
+message MedicalCaseResponse {
+  string id = 1;
+  string emergency_id = 2;
+  string city_id = 3;
+  MedicalCaseStatus status = 4;
+  optional string assigned_unit_id = 5;
+  optional string assigned_unit_name = 6;
+  string created_at = 7;
+  string updated_at = 8;
+  optional string closed_at = 9;
+}
+
+message UpdateCaseRequest {
+  string emergency_id = 1;
+  MedicalCaseStatus status = 2;
+  optional string unit_id = 3;
+}
+
+message GetUnitsRequest {}
+
+message GetUnitsResponse {
+  repeated MedicalUnitResponse units = 1;
+}
+
+message MedicalUnitResponse {
+  string id = 1;
+  string city_id = 2;
+  string name = 3;
+  MedicalUnitStatus status = 4;
+}
+
+message UpdateUnitStatusRequest {
+  string unit_id = 1;
+  MedicalUnitStatus status = 2;
+}

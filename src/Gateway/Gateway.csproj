@@ -10,6 +10,7 @@
     <Protobuf Include="..\AuthService\Protos\auth.proto" GrpcServices="Client" />
     <Protobuf Include="..\PoliceService\Protos\police.proto" GrpcServices="Client" />
     <Protobuf Include="..\FireService\Protos\fire.proto" GrpcServices="Client" />
+    <Protobuf Include="..\MedicalService\Protos\medical.proto" GrpcServices="Client" />
   </ItemGroup>
 
   <ItemGroup>
