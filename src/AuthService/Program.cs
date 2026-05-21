@@ -1,6 +1,7 @@
 using AuthService.Data;
 using AuthService.Services;
 using Microsoft.EntityFrameworkCore;
+using Shared.Auth;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<JwtBlacklistService>();
 
 builder.WebHost.ConfigureKestrel(o =>
 {

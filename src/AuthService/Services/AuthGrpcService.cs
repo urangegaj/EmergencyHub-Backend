@@ -3,12 +3,19 @@ using AuthService.Data;
 using AuthService.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Shared.Auth;
 using Shared.Enums;
 using StackExchange.Redis;
 
 namespace AuthService.Services;
 
-public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, TokenService tokens) : Auth.AuthBase
+public class AuthGrpcService(
+    AuthDbContext db,
+    IConnectionMultiplexer redis,
+    TokenService tokens,
+    JwtBlacklistService blacklist,
+    ILogger<AuthGrpcService> logger) : Auth.AuthBase
 {
     private static readonly TimeSpan RefreshTokenTtl = TimeSpan.FromDays(7);
     private readonly IDatabase _cache = redis.GetDatabase();
@@ -126,6 +133,10 @@ public class AuthGrpcService(AuthDbContext db, IConnectionMultiplexer redis, Tok
     public override async Task<LogoutResponse> Logout(LogoutRequest request, ServerCallContext context)
     {
         await _cache.KeyDeleteAsync(RefreshKey(request.RefreshToken));
+
+        var accessToken = request.HasAccessToken ? request.AccessToken : null;
+        await AccessTokenBlacklistHelper.TryBlacklistAsync(accessToken, blacklist, logger, context.CancellationToken);
+
         return new LogoutResponse();
     }
 
