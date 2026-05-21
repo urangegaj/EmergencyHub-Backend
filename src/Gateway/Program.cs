@@ -34,6 +34,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddGrpcClient<AuthService.Auth.AuthClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:AuthService"]!));
 
+builder.Services.AddGrpcClient<PoliceService.Police.PoliceClient>(o =>
+    o.Address = new Uri(builder.Configuration["Services:PoliceService"]!));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -71,5 +74,6 @@ app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();
 
 app.MapAuthRoutes();
+app.MapPoliceRoutes();
 
 app.Run();
