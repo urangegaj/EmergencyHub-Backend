@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+option csharp_namespace = "EmergencyService.Grpc";
+
+package emergency;
+
+service Emergency {
+  rpc CreateEmergency (CreateEmergencyRequest) returns (EmergencyResponse);
+  rpc GetEmergency (GetEmergencyRequest) returns (EmergencyResponse);
+  rpc AssignEmergency (AssignEmergencyRequest) returns (EmergencyResponse);
+}
+
+message CreateEmergencyRequest {
+  string city_id = 1;
+  string reported_by_user_id = 2;
+  string emergency_type_id = 3;
+  string description = 4;
+  string address = 5;
+}
+
+message GetEmergencyRequest {
+  string emergency_id = 1;
+  string city_id = 2;
+}
+
+message AssignEmergencyRequest {
+  string emergency_id = 1;
+  string city_id = 2;
+  string assigned_by_user_id = 3;
+  repeated string departments = 4;
+}
+
+message EmergencyResponse {
+  string id = 1;
+  string city_id = 2;
+  string reported_by_user_id = 3;
+  string emergency_type_id = 4;
+  string emergency_type_name = 5;
+  string description = 6;
+  string address = 7;
+  string status = 8;
+  int32 version = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  repeated AssignmentResponse assignments = 12;
+}
+
+message AssignmentResponse {
+  string id = 1;
+  string department_type = 2;
+  string assigned_at = 3;
+  optional string closed_at = 4;
+}

@@ -1,14 +1,27 @@
+using EmergencyService.Data;
 using EmergencyService.Services;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddGrpc();
+
+builder.Services.AddDbContext<EmergencyDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("EmergencyDb")));
+
+builder.WebHost.ConfigureKestrel(o =>
+    o.ListenAnyIP(5005, l => l.Protocols = HttpProtocols.Http2));
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-app.MapGrpcService<GreeterService>();
-app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<EmergencyDbContext>();
+    await db.Database.MigrateAsync();
+    await DbSeeder.SeedAsync(db);
+}
+
+app.MapGrpcService<EmergencyGrpcService>();
 
 app.Run();
