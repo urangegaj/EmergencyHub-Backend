@@ -83,6 +83,23 @@ public class EmergencyGrpcService(
         return ToResponse(emergency);
     }
 
+    public override async Task<ListEmergenciesResponse> ListEmergencies(ListEmergenciesRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CityId, out var cityId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid city_id."));
+
+        var emergencies = await db.Emergencies
+            .Include(e => e.EmergencyType)
+            .Include(e => e.Assignments)
+            .Where(e => e.CityId == cityId)
+            .OrderByDescending(e => e.CreatedAt)
+            .ToListAsync();
+
+        var response = new ListEmergenciesResponse();
+        response.Emergencies.AddRange(emergencies.Select(ToResponse));
+        return response;
+    }
+
     public override async Task<EmergencyResponse> AssignEmergency(AssignEmergencyRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.EmergencyId, out var emergencyId))

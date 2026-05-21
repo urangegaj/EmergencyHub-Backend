@@ -7,6 +7,7 @@ package emergency;
 service Emergency {
   rpc CreateEmergency (CreateEmergencyRequest) returns (EmergencyResponse);
   rpc GetEmergency (GetEmergencyRequest) returns (EmergencyResponse);
+  rpc ListEmergencies (ListEmergenciesRequest) returns (ListEmergenciesResponse);
   rpc AssignEmergency (AssignEmergencyRequest) returns (EmergencyResponse);
 }
 
@@ -21,6 +22,14 @@ message CreateEmergencyRequest {
 message GetEmergencyRequest {
   string emergency_id = 1;
   string city_id = 2;
+}
+
+message ListEmergenciesRequest {
+  string city_id = 1;
+}
+
+message ListEmergenciesResponse {
+  repeated EmergencyResponse emergencies = 1;
 }
 
 message AssignEmergencyRequest {
