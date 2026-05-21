@@ -122,6 +122,7 @@ public class PoliceGrpcService(PoliceDbContext db, IProducer<string, string> pro
             emergency_id = policeCase.EmergencyId.ToString(),
             case_id = policeCase.Id.ToString(),
             city_id = policeCase.CityId.ToString(),
+            department_type = "Police",
             status = newStatus.ToString(),
             assigned_unit_id = policeCase.AssignedUnitId?.ToString()
         });

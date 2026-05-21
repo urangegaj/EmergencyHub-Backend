@@ -122,6 +122,7 @@ public class FireGrpcService(FireDbContext db, IProducer<string, string> produce
             emergency_id = fireCase.EmergencyId.ToString(),
             case_id = fireCase.Id.ToString(),
             city_id = fireCase.CityId.ToString(),
+            department_type = "Fire",
             status = newStatus.ToString(),
             assigned_unit_id = fireCase.AssignedUnitId?.ToString()
         });

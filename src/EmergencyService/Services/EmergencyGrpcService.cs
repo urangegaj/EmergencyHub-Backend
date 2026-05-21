@@ -1,13 +1,18 @@
+using System.Text.Json;
+using Confluent.Kafka;
 using EmergencyService.Data;
 using EmergencyService.Grpc;
 using EmergencyService.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Shared.Enums;
+using Shared.Kafka;
 
 namespace EmergencyService.Services;
 
-public class EmergencyGrpcService(EmergencyDbContext db) : EmergencyService.Grpc.Emergency.EmergencyBase
+public class EmergencyGrpcService(
+    EmergencyDbContext db,
+    IProducer<string, string> producer) : EmergencyService.Grpc.Emergency.EmergencyBase
 {
     public override async Task<EmergencyResponse> CreateEmergency(CreateEmergencyRequest request, ServerCallContext context)
     {
@@ -39,6 +44,24 @@ public class EmergencyGrpcService(EmergencyDbContext db) : EmergencyService.Grpc
         });
 
         await db.SaveChangesAsync();
+
+        await producer.ProduceAsync(
+            Topics.EmergencyCreated,
+            new Message<string, string>
+            {
+                Key = emergency.Id.ToString(),
+                Value = JsonSerializer.Serialize(new
+                {
+                    emergency_id = emergency.Id.ToString(),
+                    city_id = emergency.CityId.ToString(),
+                    reported_by_user_id = emergency.ReportedByUserId.ToString(),
+                    emergency_type_id = emergency.EmergencyTypeId.ToString(),
+                    emergency_type_name = emergencyType.Name,
+                    description = emergency.Description,
+                    address = emergency.Address,
+                    created_at = emergency.CreatedAt.ToString("O")
+                })
+            });
 
         emergency.EmergencyType = emergencyType;
         return ToResponse(emergency);
@@ -86,16 +109,21 @@ public class EmergencyGrpcService(EmergencyDbContext db) : EmergencyService.Grpc
             ?? throw new RpcException(new Status(StatusCode.NotFound, "Emergency not found."));
 
         var existingDepts = emergency.Assignments.Select(a => a.DepartmentType).ToHashSet();
+        var newAssignments = new List<EmergencyAssignment>();
+
         foreach (var dept in departments)
         {
             if (existingDepts.Contains(dept)) continue;
-            db.Assignments.Add(new EmergencyAssignment
+            var assignment = new EmergencyAssignment
             {
                 EmergencyId = emergencyId,
                 DepartmentType = dept
-            });
+            };
+            db.Assignments.Add(assignment);
+            newAssignments.Add(assignment);
         }
 
+        var oldStatus = emergency.Status;
         emergency.Status = EmergencyStatus.Dispatched;
         emergency.UpdatedAt = DateTime.UtcNow;
         emergency.Version++;
@@ -108,6 +136,39 @@ public class EmergencyGrpcService(EmergencyDbContext db) : EmergencyService.Grpc
         });
 
         await db.SaveChangesAsync();
+
+        foreach (var assignment in newAssignments)
+        {
+            await producer.ProduceAsync(
+                Topics.EmergencyAssigned,
+                new Message<string, string>
+                {
+                    Key = emergencyId.ToString(),
+                    Value = JsonSerializer.Serialize(new
+                    {
+                        emergency_id = emergencyId.ToString(),
+                        city_id = cityId.ToString(),
+                        department_type = assignment.DepartmentType.ToString(),
+                        assignment_id = assignment.Id.ToString(),
+                        assigned_at = assignment.AssignedAt.ToString("O")
+                    })
+                });
+        }
+
+        await producer.ProduceAsync(
+            Topics.EmergencyStatusUpdated,
+            new Message<string, string>
+            {
+                Key = emergencyId.ToString(),
+                Value = JsonSerializer.Serialize(new
+                {
+                    emergency_id = emergencyId.ToString(),
+                    city_id = cityId.ToString(),
+                    old_status = oldStatus.ToString(),
+                    new_status = EmergencyStatus.Dispatched.ToString(),
+                    updated_at = emergency.UpdatedAt.ToString("O")
+                })
+            });
 
         await db.Entry(emergency).Collection(e => e.Assignments).LoadAsync();
         return ToResponse(emergency);

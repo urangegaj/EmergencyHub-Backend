@@ -1,4 +1,6 @@
+using Confluent.Kafka;
 using EmergencyService.Data;
+using EmergencyService.Kafka;
 using EmergencyService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +8,13 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
+
+builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection(KafkaSettings.SectionName));
+builder.Services.AddSingleton<IProducer<string, string>>(_ =>
+    new ProducerBuilder<string, string>(
+        new ProducerConfig { BootstrapServers = builder.Configuration["Kafka:BootstrapServers"] }
+    ).Build());
+builder.Services.AddHostedService<DepartmentCaseUpdatedConsumer>();
 
 builder.Services.AddDbContext<EmergencyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("EmergencyDb")));
