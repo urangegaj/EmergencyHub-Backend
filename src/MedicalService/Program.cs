@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureKestrel(o =>
 {
-    o.ListenAnyIP(5005, l => l.Protocols = HttpProtocols.Http2);
+    o.ListenAnyIP(5006, l => l.Protocols = HttpProtocols.Http2);
 });
 
 builder.Services.AddGrpc();
