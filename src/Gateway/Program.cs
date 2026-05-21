@@ -46,7 +46,6 @@ builder.Services.AddGrpcClient<FireService.Fire.FireClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:FireService"]!));
 builder.Services.AddGrpcClient<EmergencyService.Grpc.Emergency.EmergencyClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:EmergencyService"]!));
-
 builder.Services.AddGrpcClient<MedicalService.Medical.MedicalClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:MedicalService"]!));
 
