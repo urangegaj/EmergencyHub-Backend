@@ -76,10 +76,7 @@ app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();
 
 app.MapAuthRoutes();
-<<<<<<< HEAD
-app.MapPoliceRoutes();
-=======
 app.MapFireRoutes();
->>>>>>> 00cb211 (feat: implement FireService with gRPC handlers, models, proto, Kafka, and Gateway integration)
+app.MapPoliceRoutes();
 
 app.Run();

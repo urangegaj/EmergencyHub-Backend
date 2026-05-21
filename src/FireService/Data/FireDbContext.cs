@@ -10,7 +10,7 @@ public class FireDbContext(DbContextOptions<FireDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity()
+        modelBuilder.Entity<FireCase>()
         .HasIndex(c => c.EmergencyId).IsUnique();
         // unique constraint
 

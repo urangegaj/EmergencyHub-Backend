@@ -48,7 +48,7 @@ public static class PoliceRoutes
 
         app.MapPut("/api/police/cases/{emergencyId}", async (
             string emergencyId,
-            UpdateCaseBody body,
+            UpdatePoliceCaseBody body,
             Police.PoliceClient police,
             HttpContext ctx,
             CancellationToken ct) =>
@@ -88,7 +88,7 @@ public static class PoliceRoutes
 
         app.MapPut("/api/police/units/{unitId}/status", async (
             string unitId,
-            UpdateUnitStatusBody body,
+            UpdatePoliceUnitStatusBody body,
             Police.PoliceClient police,
             HttpContext ctx,
             CancellationToken ct) =>
@@ -128,5 +128,5 @@ public static class PoliceRoutes
     };
 }
 
-record UpdateCaseBody(string Status, string? UnitId);
-record UpdateUnitStatusBody(string Status);
+record UpdatePoliceCaseBody(string Status, string? UnitId);
+record UpdatePoliceUnitStatusBody(string Status);
