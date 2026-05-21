@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+option csharp_namespace = "FireService";
+
+package fire;
+
+enum FireCaseStatus {
+  OPEN = 0;
+  IN_PROGRESS = 1;
+  CLOSED = 2;
+}
+
+enum FireUnitStatus {
+  AVAILABLE = 0;
+  DEPLOYED = 1;
+  OUT_OF_SERVICE = 2;
+}
+
+service Fire {
+  rpc GetCases (GetCasesRequest) returns (GetCasesResponse);
+  rpc GetCase (GetCaseRequest) returns (FireCaseResponse);
+  rpc UpdateCase (UpdateCaseRequest) returns (FireCaseResponse);
+  rpc GetUnits (GetUnitsRequest) returns (GetUnitsResponse);
+  rpc UpdateUnitStatus (UpdateUnitStatusRequest) returns (FireUnitResponse);
+}
+
+message GetCasesRequest {
+  optional FireCaseStatus status = 1;
+}
+
+message GetCasesResponse {
+  repeated FireCaseResponse cases = 1;
+}
+
+message GetCaseRequest {
+  string emergency_id = 1;
+}
+
+message FireCaseResponse {
+  string id = 1;
+  string emergency_id = 2;
+  string city_id = 3;
+  FireCaseStatus status = 4;
+  optional string assigned_unit_id = 5;
+  optional string assigned_unit_name = 6;
+  string created_at = 7;
+  string updated_at = 8;
+  optional string closed_at = 9;
+}
+
+message UpdateCaseRequest {
+  string emergency_id = 1;
+  FireCaseStatus status = 2;
+  optional string unit_id = 3;
+}
+
+message GetUnitsRequest {}
+
+message GetUnitsResponse {
+  repeated FireUnitResponse units = 1;
+}
+
+message FireUnitResponse {
+  string id = 1;
+  string city_id = 2;
+  string name = 3;
+  FireUnitStatus status = 4;
+}
+
+message UpdateUnitStatusRequest {
+  string unit_id = 1;
+  FireUnitStatus status = 2;
+}

@@ -36,6 +36,8 @@ builder.Services.AddGrpcClient<AuthService.Auth.AuthClient>(o =>
 
 builder.Services.AddGrpcClient<PoliceService.Police.PoliceClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:PoliceService"]!));
+builder.Services.AddGrpcClient<FireService.Fire.FireClient>(o =>
+    o.Address = new Uri(builder.Configuration["Services:FireService"]!));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -74,6 +76,10 @@ app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();
 
 app.MapAuthRoutes();
+<<<<<<< HEAD
 app.MapPoliceRoutes();
+=======
+app.MapFireRoutes();
+>>>>>>> 00cb211 (feat: implement FireService with gRPC handlers, models, proto, Kafka, and Gateway integration)
 
 app.Run();
