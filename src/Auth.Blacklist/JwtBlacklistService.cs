@@ -1,11 +1,10 @@
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace Shared.Auth;
+namespace JwtBlacklist;
 
 /// <summary>
 /// Stores and checks revoked access-token JTIs in Redis.
-/// Gateway blacklist checks fail-closed: if Redis is unavailable, requests are rejected.
 /// </summary>
 public class JwtBlacklistService(IConnectionMultiplexer redis, ILogger<JwtBlacklistService> logger)
 {
@@ -19,13 +18,15 @@ public class JwtBlacklistService(IConnectionMultiplexer redis, ILogger<JwtBlackl
         await _cache.StringSetAsync(
             JwtBlacklistConstants.KeyForJti(jti),
             JwtBlacklistConstants.RevokedValue,
-            ttl);
+            ttl,
+            flags: CommandFlags.None).WaitAsync(cancellationToken);
 
         logger.LogInformation("Access token blacklisted (jti={Jti}, ttlSeconds={TtlSeconds})", jti, (int)ttl.TotalSeconds);
     }
 
     public async Task<bool> IsBlacklistedAsync(string jti, CancellationToken cancellationToken = default)
     {
-        return await _cache.KeyExistsAsync(JwtBlacklistConstants.KeyForJti(jti));
+        return await _cache.KeyExistsAsync(JwtBlacklistConstants.KeyForJti(jti), CommandFlags.None)
+            .WaitAsync(cancellationToken);
     }
 }

@@ -3,7 +3,7 @@ using Gateway.Routes;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using Shared.Auth;
+using JwtBlacklist;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);

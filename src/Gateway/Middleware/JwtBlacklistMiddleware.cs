@@ -1,13 +1,21 @@
 using System.IdentityModel.Tokens.Jwt;
+using JwtBlacklist;
 using Microsoft.AspNetCore.Authorization;
-using Shared.Auth;
 
 namespace Gateway.Middleware;
 
 /// <summary>
 /// After JWT authentication, rejects requests whose access token jti is in the Redis blacklist.
-/// Fails closed when Redis is unavailable (401) so revoked tokens cannot slip through during outages.
 /// </summary>
+/// <remarks>
+/// <para>Fails closed when Redis is unavailable: every authenticated request returns 401.</para>
+/// <para>
+/// Availability tradeoff: a Redis outage blocks all logged-in Gateway traffic rather than
+/// allowing potentially revoked tokens through until Redis recovers. This prioritizes
+/// security over availability; consider a read replica or short-lived local cache if
+/// that becomes unacceptable in production.
+/// </para>
+/// </remarks>
 public class JwtBlacklistMiddleware(
     RequestDelegate next,
     JwtBlacklistService blacklist,
@@ -22,8 +30,7 @@ public class JwtBlacklistMiddleware(
             if (string.IsNullOrEmpty(jti))
             {
                 logger.LogWarning("Authenticated request missing jti claim");
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Token is missing required identifier.");
+                await WriteUnauthorizedAsync(context, "Token is missing required identifier.");
                 return;
             }
 
@@ -32,21 +39,26 @@ public class JwtBlacklistMiddleware(
                 if (await blacklist.IsBlacklistedAsync(jti, context.RequestAborted))
                 {
                     logger.LogWarning("Rejected request with blacklisted token (jti={Jti})", jti);
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    await context.Response.WriteAsync("Token has been revoked.");
+                    await WriteUnauthorizedAsync(context, "Token has been revoked.");
                     return;
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Redis blacklist check failed for jti={Jti}", jti);
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Unable to validate token revocation status.");
+                await WriteUnauthorizedAsync(context, "Unable to validate token revocation status.");
                 return;
             }
         }
 
         await next(context);
+    }
+
+    private static async Task WriteUnauthorizedAsync(HttpContext context, string message)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.ContentType = "text/plain";
+        await context.Response.WriteAsync(message);
     }
 
     private static bool IsAllowAnonymous(HttpContext context)

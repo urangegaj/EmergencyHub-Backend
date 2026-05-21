@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -65,5 +66,33 @@ public class TokenService
         key.Use = "sig";
         key.Alg = SecurityAlgorithms.RsaSha256;
         return new JsonWebKeySet { Keys = { key } };
+    }
+
+    public bool TryValidateAccessToken(string token, [NotNullWhen(true)] out JwtSecurityToken? jwt)
+    {
+        var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
+        var parameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = _issuer,
+            ValidateAudience = true,
+            ValidAudience = _audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = _publicKey,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+
+        try
+        {
+            handler.ValidateToken(token, parameters, out _);
+            jwt = handler.ReadJwtToken(token);
+            return true;
+        }
+        catch (Exception)
+        {
+            jwt = null;
+            return false;
+        }
     }
 }
