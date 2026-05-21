@@ -1,6 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
+using JwtBlacklist;
 using Microsoft.Extensions.Logging;
-using Shared.Auth;
 
 namespace AuthService.Services;
 
@@ -9,27 +9,16 @@ internal static class AccessTokenBlacklistHelper
     public static async Task TryBlacklistAsync(
         string? accessToken,
         JwtBlacklistService blacklist,
+        TokenService tokens,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(accessToken))
             return;
 
-        var handler = new JwtSecurityTokenHandler();
-        if (!handler.CanReadToken(accessToken))
+        if (!tokens.TryValidateAccessToken(accessToken, out var jwt) || jwt is null)
         {
-            logger.LogWarning("Logout: malformed access token, skipping blacklist");
-            return;
-        }
-
-        JwtSecurityToken jwt;
-        try
-        {
-            jwt = handler.ReadJwtToken(accessToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Logout: could not read access token, skipping blacklist");
+            logger.LogWarning("Logout: access token failed signature or claim validation, skipping blacklist");
             return;
         }
 

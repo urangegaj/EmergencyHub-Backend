@@ -4,6 +4,7 @@ using AuthService.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using JwtBlacklist;
 using Shared.Auth;
 using Shared.Enums;
 using StackExchange.Redis;
@@ -135,7 +136,8 @@ public class AuthGrpcService(
         await _cache.KeyDeleteAsync(RefreshKey(request.RefreshToken));
 
         var accessToken = request.HasAccessToken ? request.AccessToken : null;
-        await AccessTokenBlacklistHelper.TryBlacklistAsync(accessToken, blacklist, logger, context.CancellationToken);
+        await AccessTokenBlacklistHelper.TryBlacklistAsync(
+            accessToken, blacklist, tokens, logger, context.CancellationToken);
 
         return new LogoutResponse();
     }

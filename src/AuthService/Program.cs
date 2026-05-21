@@ -1,7 +1,7 @@
 using AuthService.Data;
 using AuthService.Services;
 using Microsoft.EntityFrameworkCore;
-using Shared.Auth;
+using JwtBlacklist;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);

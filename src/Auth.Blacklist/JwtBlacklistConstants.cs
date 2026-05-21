@@ -1,4 +1,4 @@
-namespace Shared.Auth;
+namespace JwtBlacklist;
 
 public static class JwtBlacklistConstants
 {
