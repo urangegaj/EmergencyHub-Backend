@@ -83,13 +83,16 @@ public static class AuthRoutes
             }
         });
 
-        app.MapPost("/api/auth/logout", async (LogoutBody body, Auth.AuthClient auth, CancellationToken ct) =>
+        app.MapPost("/api/auth/logout", async (HttpContext http, LogoutBody body, Auth.AuthClient auth, CancellationToken ct) =>
         {
             try
             {
-                await auth.LogoutAsync(
-                    new LogoutRequest { RefreshToken = body.RefreshToken },
-                    ct.ToCallOptions());
+                var req = new LogoutRequest { RefreshToken = body.RefreshToken };
+                var accessToken = ExtractBearerToken(http) ?? body.AccessToken;
+                if (!string.IsNullOrWhiteSpace(accessToken))
+                    req.AccessToken = accessToken;
+
+                await auth.LogoutAsync(req, ct.ToCallOptions());
                 return Results.Ok();
             }
             catch (RpcException ex)
@@ -105,6 +108,14 @@ public static class AuthRoutes
         }).RequireAuthorization();
     }
 
+    private static string? ExtractBearerToken(HttpContext ctx)
+    {
+        var header = ctx.Request.Headers.Authorization.FirstOrDefault();
+        if (header is null || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return header["Bearer ".Length..].Trim();
+    }
+
     private static IResult MapRpcError(RpcException ex) => ex.StatusCode switch
     {
         Grpc.Core.StatusCode.AlreadyExists => Results.Conflict(ex.Status.Detail),
@@ -118,4 +129,4 @@ public static class AuthRoutes
 record RegisterBody(string Email, string Password, string Role, string FirstName, string LastName, string CityId, string? Department, string? Phone);
 record LoginBody(string Email, string Password);
 record RefreshBody(string RefreshToken);
-record LogoutBody(string RefreshToken);
+record LogoutBody(string RefreshToken, string? AccessToken = null);

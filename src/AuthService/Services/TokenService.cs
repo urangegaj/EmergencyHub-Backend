@@ -38,6 +38,7 @@ public class TokenService
     {
         var claims = new List<Claim>
         {
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(ClaimNames.UserId, user.Id.ToString()),
             new(ClaimNames.CityId, user.CityId.ToString()),
             new(ClaimNames.Role, user.Role.Name)
