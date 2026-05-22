@@ -122,6 +122,7 @@ public class MedicalGrpcService(MedicalDbContext db, IProducer<string, string> p
             emergency_id = medicalCase.EmergencyId.ToString(),
             case_id = medicalCase.Id.ToString(),
             city_id = medicalCase.CityId.ToString(),
+            department_type = "Medical",
             status = newStatus.ToString(),
             assigned_unit_id = medicalCase.AssignedUnitId?.ToString()
         });

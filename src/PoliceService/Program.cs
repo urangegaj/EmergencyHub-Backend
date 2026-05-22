@@ -29,6 +29,8 @@ builder.Services.AddSingleton<IProducer<string, string>>(_ =>
     return new ProducerBuilder<string, string>(config).Build();
 });
 
+builder.Services.AddHostedService<EmergencyAssignedConsumer>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
