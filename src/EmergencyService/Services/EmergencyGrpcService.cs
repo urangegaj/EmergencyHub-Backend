@@ -7,14 +7,18 @@ using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Shared.Enums;
 using Shared.Kafka;
+using Shared.Redis;
 
 namespace EmergencyService.Services;
 
 public class EmergencyGrpcService(
     EmergencyDbContext db,
     IProducer<string, string> producer,
-    PollRegistry pollRegistry) : EmergencyService.Grpc.Emergency.EmergencyBase
+    PollRegistry pollRegistry,
+    IRedisCache cache) : EmergencyService.Grpc.Emergency.EmergencyBase
 {
+    private static readonly TimeSpan EmergencyCacheTtl = TimeSpan.FromSeconds(30);
+
     public override async Task<EmergencyResponse> CreateEmergency(CreateEmergencyRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.CityId, out var cityId))
@@ -45,6 +49,7 @@ public class EmergencyGrpcService(
         });
 
         await db.SaveChangesAsync();
+        await cache.InvalidateAsync(EmergencyCacheKey(cityId));
 
         await producer.ProduceAsync(
             Topics.EmergencyCreated,
@@ -89,12 +94,23 @@ public class EmergencyGrpcService(
         if (!Guid.TryParse(request.CityId, out var cityId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid city_id."));
 
+        var cacheKey = EmergencyCacheKey(cityId);
+        var cached = await cache.GetAsync<List<CachedEmergency>>(cacheKey);
+        if (cached is not null)
+        {
+            var hit = new ListEmergenciesResponse();
+            hit.Emergencies.AddRange(cached.Select(ToResponseFromCached));
+            return hit;
+        }
+
         var emergencies = await db.Emergencies
             .Include(e => e.EmergencyType)
             .Include(e => e.Assignments)
             .Where(e => e.CityId == cityId)
             .OrderByDescending(e => e.CreatedAt)
             .ToListAsync();
+
+        await cache.SetAsync(cacheKey, emergencies.Select(ToCached).ToList(), EmergencyCacheTtl);
 
         var response = new ListEmergenciesResponse();
         response.Emergencies.AddRange(emergencies.Select(ToResponse));
@@ -154,6 +170,7 @@ public class EmergencyGrpcService(
         });
 
         await db.SaveChangesAsync();
+        await cache.InvalidateAsync(EmergencyCacheKey(cityId));
         pollRegistry.Signal(emergencyId);
 
         foreach (var assignment in newAssignments)
@@ -248,6 +265,59 @@ public class EmergencyGrpcService(
             .Include(e => e.Assignments)
             .FirstOrDefaultAsync(e => e.Id == emergencyId && e.CityId == cityId, ct)
            ?? throw new RpcException(new Status(StatusCode.NotFound, "Emergency not found."));
+
+    private static string EmergencyCacheKey(Guid cityId) => $"emergencies:city:{cityId}";
+
+    private static CachedEmergency ToCached(Models.Emergency e) => new(
+        e.Id.ToString(),
+        e.CityId.ToString(),
+        e.ReportedByUserId.ToString(),
+        e.EmergencyTypeId.ToString(),
+        e.EmergencyType?.Name ?? "",
+        e.Description,
+        e.Address,
+        e.Status.ToString(),
+        e.Version,
+        e.CreatedAt.ToString("O"),
+        e.UpdatedAt.ToString("O"),
+        e.Assignments.Select(a => new CachedAssignment(
+            a.Id.ToString(),
+            a.DepartmentType.ToString(),
+            a.AssignedAt.ToString("O"),
+            a.ClosedAt?.ToString("O"))).ToList());
+
+    private static EmergencyResponse ToResponseFromCached(CachedEmergency e)
+    {
+        var response = new EmergencyResponse
+        {
+            Id = e.Id,
+            CityId = e.CityId,
+            ReportedByUserId = e.ReportedByUserId,
+            EmergencyTypeId = e.EmergencyTypeId,
+            EmergencyTypeName = e.EmergencyTypeName,
+            Description = e.Description,
+            Address = e.Address,
+            Status = e.Status,
+            Version = e.Version,
+            CreatedAt = e.CreatedAt,
+            UpdatedAt = e.UpdatedAt
+        };
+
+        foreach (var a in e.Assignments)
+        {
+            var assignment = new AssignmentResponse
+            {
+                Id = a.Id,
+                DepartmentType = a.DepartmentType,
+                AssignedAt = a.AssignedAt
+            };
+            if (a.ClosedAt is not null)
+                assignment.ClosedAt = a.ClosedAt;
+            response.Assignments.Add(assignment);
+        }
+
+        return response;
+    }
 
     private static EmergencyResponse ToResponse(Models.Emergency e)
     {

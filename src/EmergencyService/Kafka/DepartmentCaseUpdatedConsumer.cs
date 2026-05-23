@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Shared.Enums;
 using Shared.Kafka;
+using Shared.Redis;
 
 namespace EmergencyService.Kafka;
 
@@ -14,6 +15,7 @@ public sealed class DepartmentCaseUpdatedConsumer(
     IServiceScopeFactory scopeFactory,
     IProducer<string, string> producer,
     PollRegistry pollRegistry,
+    IRedisCache cache,
     IOptions<KafkaSettings> settings,
     ILogger<DepartmentCaseUpdatedConsumer> logger) : BackgroundService
 {
@@ -99,6 +101,7 @@ public sealed class DepartmentCaseUpdatedConsumer(
                 });
 
                 await db.SaveChangesAsync(ct);
+                await cache.InvalidateAsync($"emergencies:city:{emergency.CityId}", ct);
                 pollRegistry.Signal(emergency.Id);
 
                 await PublishStatusUpdatedAsync(emergency, oldStatus, EmergencyStatus.Resolved, ct);
@@ -118,6 +121,7 @@ public sealed class DepartmentCaseUpdatedConsumer(
             });
 
             await db.SaveChangesAsync(ct);
+            await cache.InvalidateAsync($"emergencies:city:{emergency.CityId}", ct);
             pollRegistry.Signal(emergency.Id);
 
             await PublishStatusUpdatedAsync(emergency, EmergencyStatus.Dispatched, EmergencyStatus.InProgress, ct);

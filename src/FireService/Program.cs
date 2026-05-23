@@ -4,6 +4,8 @@ using FireService.Kafka;
 using FireService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
+using Shared.Redis;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,10 @@ builder.WebHost.ConfigureKestrel(o =>
     o.ListenAnyIP(5003, l => l.Protocols = HttpProtocols.Http2);
 });
 
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+builder.Services.AddSingleton<IDistributedLock, RedisDistributedLock>();
+builder.Services.AddSingleton<IRedisCache, RedisCache>();
 builder.Services.AddGrpc();
 
 builder.Services.AddDbContext<FireDbContext>(options =>

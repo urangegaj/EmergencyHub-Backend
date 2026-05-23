@@ -5,13 +5,20 @@ using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Shared.Auth;
 using Shared.Kafka;
+using Shared.Redis;
 using DomainMedicalCaseStatus = MedicalService.Models.MedicalCaseStatus;
 using DomainMedicalUnitStatus = MedicalService.Models.MedicalUnitStatus;
 
 namespace MedicalService.Services;
 
-public class MedicalGrpcService(MedicalDbContext db, IProducer<string, string> producer) : Medical.MedicalBase
+public class MedicalGrpcService(
+    MedicalDbContext db,
+    IProducer<string, string> producer,
+    IDistributedLock distributedLock,
+    IRedisCache cache) : Medical.MedicalBase
 {
+    private static readonly TimeSpan UnitsCacheTtl = TimeSpan.FromSeconds(15);
+
     public override async Task<GetCasesResponse> GetCases(GetCasesRequest request, ServerCallContext context)
     {
         var cityId = GetCityId(context);
@@ -83,13 +90,17 @@ public class MedicalGrpcService(MedicalDbContext db, IProducer<string, string> p
                 $"Invalid status transition: {medicalCase.Status} → {newStatus}."));
 
         Models.MedicalUnit? unit = null;
-
-        if (newStatus == DomainMedicalCaseStatus.IN_PROGRESS)
+        IAsyncDisposable? unitLock = null;
+        try
         {
-            if (request.HasUnitId)
+            if (newStatus == DomainMedicalCaseStatus.IN_PROGRESS && request.HasUnitId)
             {
                 if (!Guid.TryParse(request.UnitId, out var unitId))
                     throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid unit_id."));
+
+                unitLock = await distributedLock.TryAcquireAsync(
+                    $"lock:unit:{cityId}:{unitId}", TimeSpan.FromSeconds(10), context.CancellationToken)
+                    ?? throw new RpcException(new Status(StatusCode.Unavailable, "Unit is currently being assigned. Please retry."));
 
                 unit = await db.Units
                     .FirstOrDefaultAsync(u => u.Id == unitId && u.CityId == cityId, context.CancellationToken)
@@ -98,24 +109,29 @@ public class MedicalGrpcService(MedicalDbContext db, IProducer<string, string> p
                 medicalCase.AssignedUnitId = unit.Id;
                 unit.Status = DomainMedicalUnitStatus.DEPLOYED;
             }
-        }
 
-        if (newStatus == DomainMedicalCaseStatus.CLOSED)
-        {
-            medicalCase.ClosedAt = DateTime.UtcNow;
-
-            if (medicalCase.AssignedUnitId.HasValue)
+            if (newStatus == DomainMedicalCaseStatus.CLOSED)
             {
-                unit = await db.Units.FindAsync([medicalCase.AssignedUnitId.Value], context.CancellationToken);
-                if (unit is not null)
-                    unit.Status = DomainMedicalUnitStatus.AVAILABLE;
+                medicalCase.ClosedAt = DateTime.UtcNow;
+
+                if (medicalCase.AssignedUnitId.HasValue)
+                {
+                    unit = await db.Units.FindAsync([medicalCase.AssignedUnitId.Value], context.CancellationToken);
+                    if (unit is not null)
+                        unit.Status = DomainMedicalUnitStatus.AVAILABLE;
+                }
             }
+
+            medicalCase.Status = newStatus;
+            medicalCase.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(context.CancellationToken);
+            await cache.InvalidateAsync($"medical:units:city:{cityId}", context.CancellationToken);
         }
-
-        medicalCase.Status = newStatus;
-        medicalCase.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync(context.CancellationToken);
+        finally
+        {
+            if (unitLock is not null) await unitLock.DisposeAsync();
+        }
 
         var payload = JsonSerializer.Serialize(new
         {
@@ -141,10 +157,31 @@ public class MedicalGrpcService(MedicalDbContext db, IProducer<string, string> p
     public override async Task<GetUnitsResponse> GetUnits(GetUnitsRequest request, ServerCallContext context)
     {
         var cityId = GetCityId(context);
+        var cacheKey = $"medical:units:city:{cityId}";
+
+        var cached = await cache.GetAsync<List<CachedUnit>>(cacheKey, context.CancellationToken);
+        if (cached is not null)
+        {
+            var hit = new GetUnitsResponse();
+            hit.Units.AddRange(cached.Select(u => new MedicalUnitResponse
+            {
+                Id     = u.Id,
+                CityId = u.CityId,
+                Name   = u.Name,
+                Status = Enum.Parse<MedicalUnitStatus>(u.Status)
+            }));
+            return hit;
+        }
 
         var units = await db.Units
             .Where(u => u.CityId == cityId)
             .ToListAsync(context.CancellationToken);
+
+        await cache.SetAsync(
+            cacheKey,
+            units.Select(u => new CachedUnit(u.Id.ToString(), u.CityId.ToString(), u.Name, u.Status.ToString())).ToList(),
+            UnitsCacheTtl,
+            context.CancellationToken);
 
         var response = new GetUnitsResponse();
         response.Units.AddRange(units.Select(MapUnit));
@@ -165,6 +202,7 @@ public class MedicalGrpcService(MedicalDbContext db, IProducer<string, string> p
         unit.Status = (DomainMedicalUnitStatus)request.Status;
 
         await db.SaveChangesAsync(context.CancellationToken);
+        await cache.InvalidateAsync($"medical:units:city:{cityId}", context.CancellationToken);
 
         return MapUnit(unit);
     }

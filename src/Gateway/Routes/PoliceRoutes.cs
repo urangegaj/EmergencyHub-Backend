@@ -124,6 +124,7 @@ public static class PoliceRoutes
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
         StatusCode.AlreadyExists   => Results.Conflict(ex.Status.Detail),
+        StatusCode.Unavailable     => Results.StatusCode(503),
         _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }

@@ -5,6 +5,7 @@ using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Shared.Auth;
 using Shared.Kafka;
+using Shared.Redis;
 using DomainFireCaseStatus = FireService.Models.FireCaseStatus;
 using DomainFireUnitStatus = FireService.Models.FireUnitStatus;
 
@@ -13,8 +14,12 @@ namespace FireService.Services;
 public class FireGrpcService(
     FireDbContext db,
     IProducer<string, string> producer,
+    IDistributedLock distributedLock,
+    IRedisCache cache,
     ILogger<FireGrpcService> logger) : Fire.FireBase
 {
+    private static readonly TimeSpan UnitsCacheTtl = TimeSpan.FromSeconds(15);
+
     public override async Task<GetCasesResponse> GetCases(GetCasesRequest request, ServerCallContext context)
     {
         var cityId = GetCityId(context);
@@ -86,13 +91,17 @@ public class FireGrpcService(
                 $"Invalid status transition: {fireCase.Status} → {newStatus}."));
 
         Models.FireUnit? unit = null;
-
-        if (newStatus == DomainFireCaseStatus.IN_PROGRESS)
+        IAsyncDisposable? unitLock = null;
+        try
         {
-            if (request.HasUnitId)
+            if (newStatus == DomainFireCaseStatus.IN_PROGRESS && request.HasUnitId)
             {
                 if (!Guid.TryParse(request.UnitId, out var unitId))
                     throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid unit_id."));
+
+                unitLock = await distributedLock.TryAcquireAsync(
+                    $"lock:unit:{cityId}:{unitId}", TimeSpan.FromSeconds(10), context.CancellationToken)
+                    ?? throw new RpcException(new Status(StatusCode.Unavailable, "Unit is currently being assigned. Please retry."));
 
                 unit = await db.Units
                     .FirstOrDefaultAsync(u => u.Id == unitId && u.CityId == cityId, context.CancellationToken)
@@ -101,24 +110,29 @@ public class FireGrpcService(
                 fireCase.AssignedUnitId = unit.Id;
                 unit.Status = DomainFireUnitStatus.DEPLOYED;
             }
-        }
 
-        if (newStatus == DomainFireCaseStatus.CLOSED)
-        {
-            fireCase.ClosedAt = DateTime.UtcNow;
-
-            if (fireCase.AssignedUnitId.HasValue)
+            if (newStatus == DomainFireCaseStatus.CLOSED)
             {
-                unit = await db.Units.FindAsync([fireCase.AssignedUnitId.Value], context.CancellationToken);
-                if (unit is not null)
-                    unit.Status = DomainFireUnitStatus.AVAILABLE;
+                fireCase.ClosedAt = DateTime.UtcNow;
+
+                if (fireCase.AssignedUnitId.HasValue)
+                {
+                    unit = await db.Units.FindAsync([fireCase.AssignedUnitId.Value], context.CancellationToken);
+                    if (unit is not null)
+                        unit.Status = DomainFireUnitStatus.AVAILABLE;
+                }
             }
+
+            fireCase.Status = newStatus;
+            fireCase.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(context.CancellationToken);
+            await cache.InvalidateAsync($"fire:units:city:{cityId}", context.CancellationToken);
         }
-
-        fireCase.Status = newStatus;
-        fireCase.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync(context.CancellationToken);
+        finally
+        {
+            if (unitLock is not null) await unitLock.DisposeAsync();
+        }
 
         try
         {
@@ -163,10 +177,31 @@ public class FireGrpcService(
     public override async Task<GetUnitsResponse> GetUnits(GetUnitsRequest request, ServerCallContext context)
     {
         var cityId = GetCityId(context);
+        var cacheKey = $"fire:units:city:{cityId}";
+
+        var cached = await cache.GetAsync<List<CachedUnit>>(cacheKey, context.CancellationToken);
+        if (cached is not null)
+        {
+            var hit = new GetUnitsResponse();
+            hit.Units.AddRange(cached.Select(u => new FireUnitResponse
+            {
+                Id     = u.Id,
+                CityId = u.CityId,
+                Name   = u.Name,
+                Status = Enum.Parse<FireUnitStatus>(u.Status)
+            }));
+            return hit;
+        }
 
         var units = await db.Units
             .Where(u => u.CityId == cityId)
             .ToListAsync(context.CancellationToken);
+
+        await cache.SetAsync(
+            cacheKey,
+            units.Select(u => new CachedUnit(u.Id.ToString(), u.CityId.ToString(), u.Name, u.Status.ToString())).ToList(),
+            UnitsCacheTtl,
+            context.CancellationToken);
 
         var response = new GetUnitsResponse();
         response.Units.AddRange(units.Select(MapUnit));
@@ -187,6 +222,7 @@ public class FireGrpcService(
         unit.Status = (DomainFireUnitStatus)request.Status;
 
         await db.SaveChangesAsync(context.CancellationToken);
+        await cache.InvalidateAsync($"fire:units:city:{cityId}", context.CancellationToken);
 
         return MapUnit(unit);
     }

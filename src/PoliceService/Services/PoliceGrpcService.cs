@@ -5,13 +5,20 @@ using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Shared.Auth;
 using Shared.Kafka;
+using Shared.Redis;
 using DomainPoliceCaseStatus = PoliceService.Models.PoliceCaseStatus;
 using DomainPoliceUnitStatus = PoliceService.Models.PoliceUnitStatus;
 
 namespace PoliceService.Services;
 
-public class PoliceGrpcService(PoliceDbContext db, IProducer<string, string> producer) : Police.PoliceBase
+public class PoliceGrpcService(
+    PoliceDbContext db,
+    IProducer<string, string> producer,
+    IDistributedLock distributedLock,
+    IRedisCache cache) : Police.PoliceBase
 {
+    private static readonly TimeSpan UnitsCacheTtl = TimeSpan.FromSeconds(15);
+
     public override async Task<GetCasesResponse> GetCases(GetCasesRequest request, ServerCallContext context)
     {
         var cityId = GetCityId(context);
@@ -83,13 +90,17 @@ public class PoliceGrpcService(PoliceDbContext db, IProducer<string, string> pro
                 $"Invalid status transition: {policeCase.Status} → {newStatus}."));
 
         Models.PoliceUnit? unit = null;
-
-        if (newStatus == DomainPoliceCaseStatus.IN_PROGRESS)
+        IAsyncDisposable? unitLock = null;
+        try
         {
-            if (request.HasUnitId)
+            if (newStatus == DomainPoliceCaseStatus.IN_PROGRESS && request.HasUnitId)
             {
                 if (!Guid.TryParse(request.UnitId, out var unitId))
                     throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid unit_id."));
+
+                unitLock = await distributedLock.TryAcquireAsync(
+                    $"lock:unit:{cityId}:{unitId}", TimeSpan.FromSeconds(10), context.CancellationToken)
+                    ?? throw new RpcException(new Status(StatusCode.Unavailable, "Unit is currently being assigned. Please retry."));
 
                 unit = await db.Units
                     .FirstOrDefaultAsync(u => u.Id == unitId && u.CityId == cityId, context.CancellationToken)
@@ -98,24 +109,29 @@ public class PoliceGrpcService(PoliceDbContext db, IProducer<string, string> pro
                 policeCase.AssignedUnitId = unit.Id;
                 unit.Status = DomainPoliceUnitStatus.DEPLOYED;
             }
-        }
 
-        if (newStatus == DomainPoliceCaseStatus.CLOSED)
-        {
-            policeCase.ClosedAt = DateTime.UtcNow;
-
-            if (policeCase.AssignedUnitId.HasValue)
+            if (newStatus == DomainPoliceCaseStatus.CLOSED)
             {
-                unit = await db.Units.FindAsync([policeCase.AssignedUnitId.Value], context.CancellationToken);
-                if (unit is not null)
-                    unit.Status = DomainPoliceUnitStatus.AVAILABLE;
+                policeCase.ClosedAt = DateTime.UtcNow;
+
+                if (policeCase.AssignedUnitId.HasValue)
+                {
+                    unit = await db.Units.FindAsync([policeCase.AssignedUnitId.Value], context.CancellationToken);
+                    if (unit is not null)
+                        unit.Status = DomainPoliceUnitStatus.AVAILABLE;
+                }
             }
+
+            policeCase.Status = newStatus;
+            policeCase.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(context.CancellationToken);
+            await cache.InvalidateAsync($"police:units:city:{cityId}", context.CancellationToken);
         }
-
-        policeCase.Status = newStatus;
-        policeCase.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync(context.CancellationToken);
+        finally
+        {
+            if (unitLock is not null) await unitLock.DisposeAsync();
+        }
 
         var payload = JsonSerializer.Serialize(new
         {
@@ -141,10 +157,31 @@ public class PoliceGrpcService(PoliceDbContext db, IProducer<string, string> pro
     public override async Task<GetUnitsResponse> GetUnits(GetUnitsRequest request, ServerCallContext context)
     {
         var cityId = GetCityId(context);
+        var cacheKey = $"police:units:city:{cityId}";
+
+        var cached = await cache.GetAsync<List<CachedUnit>>(cacheKey, context.CancellationToken);
+        if (cached is not null)
+        {
+            var hit = new GetUnitsResponse();
+            hit.Units.AddRange(cached.Select(u => new PoliceUnitResponse
+            {
+                Id     = u.Id,
+                CityId = u.CityId,
+                Name   = u.Name,
+                Status = Enum.Parse<PoliceUnitStatus>(u.Status)
+            }));
+            return hit;
+        }
 
         var units = await db.Units
             .Where(u => u.CityId == cityId)
             .ToListAsync(context.CancellationToken);
+
+        await cache.SetAsync(
+            cacheKey,
+            units.Select(u => new CachedUnit(u.Id.ToString(), u.CityId.ToString(), u.Name, u.Status.ToString())).ToList(),
+            UnitsCacheTtl,
+            context.CancellationToken);
 
         var response = new GetUnitsResponse();
         response.Units.AddRange(units.Select(MapUnit));
@@ -165,6 +202,7 @@ public class PoliceGrpcService(PoliceDbContext db, IProducer<string, string> pro
         unit.Status = (DomainPoliceUnitStatus)request.Status;
 
         await db.SaveChangesAsync(context.CancellationToken);
+        await cache.InvalidateAsync($"police:units:city:{cityId}", context.CancellationToken);
 
         return MapUnit(unit);
     }
