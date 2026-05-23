@@ -80,6 +80,34 @@ public static class EmergencyRoutes
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
 
+        app.MapGet("/api/emergencies/{id}/poll", async (
+            string id,
+            int since,
+            int? timeout,
+            Emergency.EmergencyClient emergency,
+            HttpContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ValidateEmergencyId(id) is { } idError)
+                return idError;
+
+            var tenant = Tenant(ctx);
+            try
+            {
+                var resp = await emergency.PollEmergencyAsync(
+                    new PollEmergencyRequest
+                    {
+                        EmergencyId    = id,
+                        CityId         = tenant.CityId.ToString(),
+                        Since          = since,
+                        TimeoutSeconds = timeout ?? 30
+                    },
+                    ct.ToCallOptions());
+                return Results.Ok(resp);
+            }
+            catch (RpcException ex) { return MapRpcError(ex); }
+        }).RequireAuthorization();
+
         app.MapPost("/api/emergencies/{id}/assign", async (
             string id,
             AssignEmergencyBody body,

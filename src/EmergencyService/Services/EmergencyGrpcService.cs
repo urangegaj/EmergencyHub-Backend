@@ -12,7 +12,8 @@ namespace EmergencyService.Services;
 
 public class EmergencyGrpcService(
     EmergencyDbContext db,
-    IProducer<string, string> producer) : EmergencyService.Grpc.Emergency.EmergencyBase
+    IProducer<string, string> producer,
+    PollRegistry pollRegistry) : EmergencyService.Grpc.Emergency.EmergencyBase
 {
     public override async Task<EmergencyResponse> CreateEmergency(CreateEmergencyRequest request, ServerCallContext context)
     {
@@ -153,6 +154,7 @@ public class EmergencyGrpcService(
         });
 
         await db.SaveChangesAsync();
+        pollRegistry.Signal(emergencyId);
 
         foreach (var assignment in newAssignments)
         {
@@ -190,6 +192,62 @@ public class EmergencyGrpcService(
         await db.Entry(emergency).Collection(e => e.Assignments).LoadAsync();
         return ToResponse(emergency);
     }
+
+    public override async Task<EmergencyResponse> PollEmergency(
+        PollEmergencyRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EmergencyId, out var emergencyId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid emergency_id."));
+        if (!Guid.TryParse(request.CityId, out var cityId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid city_id."));
+
+        var timeoutSeconds = request.TimeoutSeconds switch
+        {
+            <= 0 => 30,
+            > 60 => 60,
+            _    => request.TimeoutSeconds
+        };
+
+        var tcs = pollRegistry.Subscribe(emergencyId);
+        try
+        {
+            var emergency = await FetchEmergencyAsync(emergencyId, cityId, context.CancellationToken);
+            if (emergency.Version > request.Since)
+                return ToResponse(emergency);
+
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            using var linkedCts  = CancellationTokenSource.CreateLinkedTokenSource(
+                context.CancellationToken, timeoutCts.Token);
+
+            try
+            {
+                await tcs.Task.WaitAsync(linkedCts.Token);
+            }
+            catch (OperationCanceledException)
+                when (timeoutCts.IsCancellationRequested && !context.CancellationToken.IsCancellationRequested)
+            {
+            }
+
+            emergency = await FetchEmergencyAsync(emergencyId, cityId, context.CancellationToken);
+            return ToResponse(emergency);
+        }
+        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        {
+            throw new RpcException(Status.DefaultCancelled);
+        }
+        finally
+        {
+            pollRegistry.Unsubscribe(emergencyId, tcs);
+        }
+    }
+
+    private async Task<Models.Emergency> FetchEmergencyAsync(Guid emergencyId, Guid cityId, CancellationToken ct)
+        => await db.Emergencies
+            .AsNoTracking()
+            .Include(e => e.EmergencyType)
+            .Include(e => e.Assignments)
+            .FirstOrDefaultAsync(e => e.Id == emergencyId && e.CityId == cityId, ct)
+           ?? throw new RpcException(new Status(StatusCode.NotFound, "Emergency not found."));
 
     private static EmergencyResponse ToResponse(Models.Emergency e)
     {

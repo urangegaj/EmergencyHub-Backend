@@ -9,6 +9,7 @@ service Emergency {
   rpc GetEmergency (GetEmergencyRequest) returns (EmergencyResponse);
   rpc ListEmergencies (ListEmergenciesRequest) returns (ListEmergenciesResponse);
   rpc AssignEmergency (AssignEmergencyRequest) returns (EmergencyResponse);
+  rpc PollEmergency (PollEmergencyRequest) returns (EmergencyResponse);
 }
 
 message CreateEmergencyRequest {
@@ -37,6 +38,13 @@ message AssignEmergencyRequest {
   string city_id = 2;
   string assigned_by_user_id = 3;
   repeated string departments = 4;
+}
+
+message PollEmergencyRequest {
+  string emergency_id    = 1;
+  string city_id         = 2;
+  int32  since           = 3;
+  int32  timeout_seconds = 4;
 }
 
 message EmergencyResponse {

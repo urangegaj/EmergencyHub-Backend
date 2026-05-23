@@ -2,6 +2,7 @@ using System.Text.Json;
 using Confluent.Kafka;
 using EmergencyService.Data;
 using EmergencyService.Models;
+using EmergencyService.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Shared.Enums;
@@ -12,6 +13,7 @@ namespace EmergencyService.Kafka;
 public sealed class DepartmentCaseUpdatedConsumer(
     IServiceScopeFactory scopeFactory,
     IProducer<string, string> producer,
+    PollRegistry pollRegistry,
     IOptions<KafkaSettings> settings,
     ILogger<DepartmentCaseUpdatedConsumer> logger) : BackgroundService
 {
@@ -97,6 +99,7 @@ public sealed class DepartmentCaseUpdatedConsumer(
                 });
 
                 await db.SaveChangesAsync(ct);
+                pollRegistry.Signal(emergency.Id);
 
                 await PublishStatusUpdatedAsync(emergency, oldStatus, EmergencyStatus.Resolved, ct);
             }
@@ -115,6 +118,7 @@ public sealed class DepartmentCaseUpdatedConsumer(
             });
 
             await db.SaveChangesAsync(ct);
+            pollRegistry.Signal(emergency.Id);
 
             await PublishStatusUpdatedAsync(emergency, EmergencyStatus.Dispatched, EmergencyStatus.InProgress, ct);
         }
