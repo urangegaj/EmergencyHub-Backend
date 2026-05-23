@@ -1,6 +1,8 @@
 using System.Text.Json;
 using EmergencyService.Grpc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NotificationService.Data;
 using NotificationService.Models;
 using NotificationService.Services;
 using Shared.Kafka;
@@ -44,6 +46,7 @@ public sealed class EmergencyStatusUpdatedConsumer(
         var newStatus = newStatusProp.GetString() ?? string.Empty;
 
         using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var emergencyClient = scope.ServiceProvider.GetRequiredService<Emergency.EmergencyClient>();
         var userLookup = scope.ServiceProvider.GetRequiredService<AuthUserLookupService>();
         var dispatch = scope.ServiceProvider.GetRequiredService<NotificationDispatchService>();
@@ -62,6 +65,20 @@ public sealed class EmergencyStatusUpdatedConsumer(
         var reporter = await userLookup.GetUserAsync(reporterId, ct);
         if (reporter is null)
             return;
+
+        var alreadyNotified = await db.Notifications.AnyAsync(
+            n => n.EmergencyId == emergencyId
+                 && n.Type == NotificationTypes.EmergencyStatusUpdated
+                 && n.UserId == reporterId,
+            ct);
+
+        if (alreadyNotified)
+        {
+            logger.LogDebug(
+                "Skipping duplicate emergency.status.updated notification for user {UserId}, emergency {EmergencyId}",
+                reporterId, emergencyId);
+            return;
+        }
 
         var subject = $"Emergency status updated to {newStatus}";
         var body =

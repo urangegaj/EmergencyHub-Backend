@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NotificationService.Data;
 using NotificationService.Models;
 using NotificationService.Services;
 using Shared.Kafka;
@@ -45,6 +47,7 @@ public sealed class DepartmentCaseUpdatedConsumer(
         var assignedUnitId = unitProp.ValueKind == JsonValueKind.String ? unitProp.GetString() : null;
 
         using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var userLookup = scope.ServiceProvider.GetRequiredService<AuthUserLookupService>();
         var dispatch = scope.ServiceProvider.GetRequiredService<NotificationDispatchService>();
 
@@ -70,6 +73,20 @@ public sealed class DepartmentCaseUpdatedConsumer(
         {
             if (!Guid.TryParse(user.UserId, out var userId))
                 continue;
+
+            var alreadyNotified = await db.Notifications.AnyAsync(
+                n => n.EmergencyId == emergencyId
+                     && n.Type == NotificationTypes.DepartmentCaseUpdated
+                     && n.UserId == userId,
+                ct);
+
+            if (alreadyNotified)
+            {
+                logger.LogDebug(
+                    "Skipping duplicate department.case.updated notification for user {UserId}, emergency {EmergencyId}",
+                    userId, emergencyId);
+                continue;
+            }
 
             await dispatch.SendEmailNotificationAsync(
                 userId,

@@ -56,7 +56,7 @@ public sealed class EmergencyCreatedConsumer(
             CityId = cityId,
             Type = NotificationTypes.EmergencyCreated,
             EmergencyId = emergencyId,
-            Status = NotificationStatus.SENT,
+            Status = NotificationStatus.IN_APP_ONLY,
             IsRead = false,
             CreatedAt = DateTime.UtcNow
         });

@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NotificationService.Data;
 using NotificationService.Models;
 using NotificationService.Services;
 using Shared.Kafka;
@@ -39,6 +41,7 @@ public sealed class EmergencyAssignedConsumer(
             return;
 
         using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var userLookup = scope.ServiceProvider.GetRequiredService<AuthUserLookupService>();
         var dispatch = scope.ServiceProvider.GetRequiredService<NotificationDispatchService>();
 
@@ -55,6 +58,20 @@ public sealed class EmergencyAssignedConsumer(
         {
             if (!Guid.TryParse(user.UserId, out var userId))
                 continue;
+
+            var alreadyNotified = await db.Notifications.AnyAsync(
+                n => n.EmergencyId == emergencyId
+                     && n.Type == NotificationTypes.EmergencyAssigned
+                     && n.UserId == userId,
+                ct);
+
+            if (alreadyNotified)
+            {
+                logger.LogDebug(
+                    "Skipping duplicate emergency.assigned notification for user {UserId}, emergency {EmergencyId}",
+                    userId, emergencyId);
+                continue;
+            }
 
             var subject = $"Emergency assigned to {departmentType}";
             var body =
