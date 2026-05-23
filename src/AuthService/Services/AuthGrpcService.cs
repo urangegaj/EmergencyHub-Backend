@@ -142,6 +142,56 @@ public class AuthGrpcService(
         return new LogoutResponse();
     }
 
+    public override async Task<UserResponse> GetUser(GetUserRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid user_id."));
+
+        var user = await db.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Id == userId, context.CancellationToken)
+            ?? throw new RpcException(new Status(StatusCode.NotFound, "User not found."));
+
+        return MapUser(user);
+    }
+
+    public override async Task<ListUsersResponse> ListDepartmentUsers(
+        ListDepartmentUsersRequest request,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CityId, out var cityId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid city_id."));
+
+        if (!Enum.TryParse<DepartmentType>(request.Department, ignoreCase: true, out var department))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, $"Unknown department: {request.Department}."));
+
+        var users = await db.Users
+            .Include(u => u.Role)
+            .Where(u => u.CityId == cityId
+                        && u.Department == department
+                        && u.Role.Name == nameof(UserRole.Responder))
+            .ToListAsync(context.CancellationToken);
+
+        var response = new ListUsersResponse();
+        response.Users.AddRange(users.Select(MapUser));
+        return response;
+    }
+
+    private static UserResponse MapUser(User user)
+    {
+        var response = new UserResponse
+        {
+            UserId = user.Id.ToString(),
+            Email = user.Email,
+            Role = user.Role.Name
+        };
+
+        if (user.Department.HasValue)
+            response.Department = user.Department.Value.ToString();
+
+        return response;
+    }
+
     private static string GenerateRefreshToken()
         => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
 
