@@ -10,4 +10,6 @@ public class AssessmentReport
     public string? AiResponse { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? SentAt { get; set; }
+    public int RetryCount { get; set; }
+    public string? LastError { get; set; }
 }

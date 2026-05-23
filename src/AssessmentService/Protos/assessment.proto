@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+option csharp_namespace = "AssessmentService.Grpc";
+
+package assessment;
+
+service Assessment {
+  rpc GetReport (GetReportRequest) returns (AssessmentReportResponse);
+  rpc RetryReport (RetryReportRequest) returns (AssessmentReportResponse);
+}
+
+message GetReportRequest {
+  string emergency_id = 1;
+}
+
+message RetryReportRequest {
+  string emergency_id = 1;
+}
+
+message AssessmentReportResponse {
+  string id = 1;
+  string emergency_id = 2;
+  string status = 3;
+  optional string ai_response = 4;
+  optional string last_error = 5;
+  int32 retry_count = 6;
+  string created_at = 7;
+  optional string sent_at = 8;
+}
