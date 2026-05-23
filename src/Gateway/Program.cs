@@ -44,7 +44,8 @@ builder.Services.AddGrpcClient<PoliceService.Police.PoliceClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:PoliceService"]!));
 builder.Services.AddGrpcClient<FireService.Fire.FireClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:FireService"]!));
-
+builder.Services.AddGrpcClient<EmergencyService.Grpc.Emergency.EmergencyClient>(o =>
+    o.Address = new Uri(builder.Configuration["Services:EmergencyService"]!));
 builder.Services.AddGrpcClient<MedicalService.Medical.MedicalClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:MedicalService"]!));
 
@@ -86,6 +87,7 @@ app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();
 
 app.MapAuthRoutes();
+app.MapEmergencyRoutes();
 app.MapFireRoutes();
 app.MapPoliceRoutes();
 app.MapMedicalRoutes();
