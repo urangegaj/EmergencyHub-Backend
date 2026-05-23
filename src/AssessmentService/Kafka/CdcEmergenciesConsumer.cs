@@ -64,19 +64,65 @@ public sealed class CdcEmergenciesConsumer(
         if (!root.TryGetProperty("after", out var after) || after.ValueKind == JsonValueKind.Null) return;
         if (!root.TryGetProperty("before", out var before) || before.ValueKind == JsonValueKind.Null) return;
 
-        var afterStatus = after.GetProperty("Status").GetInt32();
+        if (!after.TryGetProperty("Status", out var afterStatusProp) || !afterStatusProp.TryGetInt32(out var afterStatus))
+        {
+            logger.LogWarning("CDC message missing after.Status");
+            return;
+        }
+
         if (afterStatus != 3) return;
 
-        var beforeStatus = before.GetProperty("Status").GetInt32();
+        if (!before.TryGetProperty("Status", out var beforeStatusProp) || !beforeStatusProp.TryGetInt32(out var beforeStatus))
+        {
+            logger.LogWarning("CDC message missing before.Status");
+            return;
+        }
+
         if (beforeStatus == 3) return;
 
-        if (!Guid.TryParse(after.GetProperty("Id").GetString(), out var emergencyId)) return;
-        if (!Guid.TryParse(after.GetProperty("CityId").GetString(), out var cityId)) return;
+        if (!after.TryGetProperty("Id", out var idProp) || !Guid.TryParse(idProp.GetString(), out var emergencyId))
+        {
+            logger.LogWarning("CDC message missing or invalid after.Id");
+            return;
+        }
 
-        var description = after.GetProperty("Description").GetString() ?? string.Empty;
-        var address = after.GetProperty("Address").GetString() ?? string.Empty;
-        var createdAt = after.GetProperty("CreatedAt").GetDateTime();
-        var resolvedAt = after.GetProperty("UpdatedAt").GetDateTime();
+        if (!after.TryGetProperty("CityId", out var cityIdProp) || !Guid.TryParse(cityIdProp.GetString(), out var cityId))
+        {
+            logger.LogWarning("CDC message missing or invalid after.CityId");
+            return;
+        }
+
+        if (!after.TryGetProperty("Description", out var descriptionProp))
+        {
+            logger.LogWarning("CDC message missing after.Description");
+            return;
+        }
+
+        var description = descriptionProp.GetString() ?? string.Empty;
+
+        if (!after.TryGetProperty("Address", out var addressProp))
+        {
+            logger.LogWarning("CDC message missing after.Address");
+            return;
+        }
+
+        var address = addressProp.GetString() ?? string.Empty;
+
+        if (!after.TryGetProperty("CreatedAt", out var createdAtProp))
+        {
+            logger.LogWarning("CDC message missing after.CreatedAt");
+            return;
+        }
+
+        var createdAt = createdAtProp.GetDateTime();
+
+        if (!after.TryGetProperty("UpdatedAt", out var resolvedAtProp))
+        {
+            logger.LogWarning("CDC message missing after.UpdatedAt");
+            return;
+        }
+
+        var resolvedAt = resolvedAtProp.GetDateTime();
         var durationMinutes = (int)(resolvedAt - createdAt).TotalMinutes;
 
         var departments = cache.Get(emergencyId);

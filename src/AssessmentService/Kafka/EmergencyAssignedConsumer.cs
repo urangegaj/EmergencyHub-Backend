@@ -24,25 +24,38 @@ public sealed class EmergencyAssignedConsumer(
         using var consumer = new ConsumerBuilder<string, string>(config).Build();
         consumer.Subscribe(Shared.Kafka.Topics.EmergencyAssigned);
 
+        int retryCount = 0;
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            ConsumeResult<string, string>? result = null;
             try
             {
-                var result = consumer.Consume(stoppingToken);
+                result = consumer.Consume(stoppingToken);
 
                 using var doc = JsonDocument.Parse(result.Message.Value);
                 var root = doc.RootElement;
 
-                if (!Guid.TryParse(root.GetProperty("emergency_id").GetString(), out var emergencyId))
+                if (!root.TryGetProperty("emergency_id", out var emergencyIdProp) ||
+                    !Guid.TryParse(emergencyIdProp.GetString(), out var emergencyId))
                 {
                     consumer.Commit(result);
+                    retryCount = 0;
                     continue;
                 }
 
-                var departmentType = root.GetProperty("department_type").GetString() ?? string.Empty;
+                if (!root.TryGetProperty("department_type", out var departmentTypeProp))
+                {
+                    consumer.Commit(result);
+                    retryCount = 0;
+                    continue;
+                }
+
+                var departmentType = departmentTypeProp.GetString() ?? string.Empty;
                 cache.Add(emergencyId, departmentType);
 
                 consumer.Commit(result);
+                retryCount = 0;
             }
             catch (OperationCanceledException)
             {
@@ -50,8 +63,19 @@ public sealed class EmergencyAssignedConsumer(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error consuming emergency.assigned");
-                await Task.Delay(1000, stoppingToken);
+                retryCount++;
+                logger.LogError(ex, "Error consuming emergency.assigned (attempt {Attempt})", retryCount);
+                if (retryCount >= 5)
+                {
+                    logger.LogError("Skipping message after {MaxRetries} consecutive failures", retryCount);
+                    if (result is not null)
+                        consumer.Commit(result);
+                    retryCount = 0;
+                }
+                else
+                {
+                    await Task.Delay(1000, stoppingToken);
+                }
             }
         }
 

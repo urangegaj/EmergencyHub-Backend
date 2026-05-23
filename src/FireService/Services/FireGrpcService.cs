@@ -10,7 +10,10 @@ using DomainFireUnitStatus = FireService.Models.FireUnitStatus;
 
 namespace FireService.Services;
 
-public class FireGrpcService(FireDbContext db, IProducer<string, string> producer) : Fire.FireBase
+public class FireGrpcService(
+    FireDbContext db,
+    IProducer<string, string> producer,
+    ILogger<FireGrpcService> logger) : Fire.FireBase
 {
     public override async Task<GetCasesResponse> GetCases(GetCasesRequest request, ServerCallContext context)
     {
@@ -117,20 +120,39 @@ public class FireGrpcService(FireDbContext db, IProducer<string, string> produce
 
         await db.SaveChangesAsync(context.CancellationToken);
 
-        var payload = JsonSerializer.Serialize(new
+        try
         {
-            emergency_id = fireCase.EmergencyId.ToString(),
-            case_id = fireCase.Id.ToString(),
-            city_id = fireCase.CityId.ToString(),
-            department_type = "Fire",
-            status = newStatus.ToString(),
-            assigned_unit_id = fireCase.AssignedUnitId?.ToString()
-        });
+            var payload = JsonSerializer.Serialize(new
+            {
+                emergency_id = fireCase.EmergencyId.ToString(),
+                case_id = fireCase.Id.ToString(),
+                city_id = fireCase.CityId.ToString(),
+                department_type = "Fire",
+                status = newStatus.ToString(),
+                assigned_unit_id = fireCase.AssignedUnitId?.ToString()
+            });
 
-        await producer.ProduceAsync(
-            Topics.DepartmentCaseUpdated,
-            new Message<string, string> { Key = fireCase.EmergencyId.ToString(), Value = payload },
-            context.CancellationToken);
+            await producer.ProduceAsync(
+                Topics.DepartmentCaseUpdated,
+                new Message<string, string> { Key = fireCase.EmergencyId.ToString(), Value = payload },
+                context.CancellationToken);
+
+            logger.LogInformation(
+                "Published {Topic} for emergency {EmergencyId}, case {CaseId}, status {Status}",
+                Topics.DepartmentCaseUpdated,
+                fireCase.EmergencyId,
+                fireCase.Id,
+                newStatus);
+        }
+        catch (ProduceException<string, string> ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to publish {Topic} for emergency {EmergencyId} after DB update",
+                Topics.DepartmentCaseUpdated,
+                fireCase.EmergencyId);
+            throw new RpcException(new Status(StatusCode.Internal, "Case updated but event publish failed."));
+        }
 
         if (unit is null && fireCase.AssignedUnitId.HasValue)
             unit = await db.Units.FindAsync([fireCase.AssignedUnitId.Value], context.CancellationToken);

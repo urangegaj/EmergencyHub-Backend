@@ -111,9 +111,9 @@ public sealed class AssessmentPipelineService(
             {
                 var r = await policeClient.GetCaseAsync(new PoliceService.GetCaseRequest { EmergencyId = emergencyId }, cancellationToken: ct);
                 unit = r.AssignedUnitName ?? "unassigned";
-                var caseCreatedAt = DateTime.Parse(r.CreatedAt);
+                var caseCreatedAt = DateTime.Parse(r.CreatedAt, null, System.Globalization.DateTimeStyles.RoundtripKind);
                 mobilisationMinutes = (caseCreatedAt - emergencyCreatedAt).TotalMinutes;
-                resolutionMinutes = r.HasClosedAt ? (DateTime.Parse(r.ClosedAt) - caseCreatedAt).TotalMinutes : 0;
+                resolutionMinutes = r.HasClosedAt ? (DateTime.Parse(r.ClosedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) - caseCreatedAt).TotalMinutes : 0;
                 outcome = r.Status.ToString();
                 break;
             }
@@ -121,9 +121,9 @@ public sealed class AssessmentPipelineService(
             {
                 var r = await fireClient.GetCaseAsync(new FireService.GetCaseRequest { EmergencyId = emergencyId }, cancellationToken: ct);
                 unit = r.AssignedUnitName ?? "unassigned";
-                var caseCreatedAt = DateTime.Parse(r.CreatedAt);
+                var caseCreatedAt = DateTime.Parse(r.CreatedAt, null, System.Globalization.DateTimeStyles.RoundtripKind);
                 mobilisationMinutes = (caseCreatedAt - emergencyCreatedAt).TotalMinutes;
-                resolutionMinutes = r.HasClosedAt ? (DateTime.Parse(r.ClosedAt) - caseCreatedAt).TotalMinutes : 0;
+                resolutionMinutes = r.HasClosedAt ? (DateTime.Parse(r.ClosedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) - caseCreatedAt).TotalMinutes : 0;
                 outcome = r.Status.ToString();
                 break;
             }
@@ -131,9 +131,9 @@ public sealed class AssessmentPipelineService(
             {
                 var r = await medicalClient.GetCaseAsync(new MedicalService.GetCaseRequest { EmergencyId = emergencyId }, cancellationToken: ct);
                 unit = r.AssignedUnitName ?? "unassigned";
-                var caseCreatedAt = DateTime.Parse(r.CreatedAt);
+                var caseCreatedAt = DateTime.Parse(r.CreatedAt, null, System.Globalization.DateTimeStyles.RoundtripKind);
                 mobilisationMinutes = (caseCreatedAt - emergencyCreatedAt).TotalMinutes;
-                resolutionMinutes = r.HasClosedAt ? (DateTime.Parse(r.ClosedAt) - caseCreatedAt).TotalMinutes : 0;
+                resolutionMinutes = r.HasClosedAt ? (DateTime.Parse(r.ClosedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) - caseCreatedAt).TotalMinutes : 0;
                 outcome = r.Status.ToString();
                 break;
             }
