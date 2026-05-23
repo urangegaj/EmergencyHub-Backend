@@ -53,6 +53,11 @@ namespace FireService.Data.Migrations
 
                     b.HasIndex("CityId");
 
+                    b.HasIndex("EmergencyId")
+                        .IsUnique();
+
+                    b.HasIndex("CityId", "Status");
+
                     b.ToTable("fire_cases", (string)null);
                 });
 

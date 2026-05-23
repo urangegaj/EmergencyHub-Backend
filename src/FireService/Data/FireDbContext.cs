@@ -11,13 +11,11 @@ public class FireDbContext(DbContextOptions<FireDbContext> options) : DbContext(
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<FireCase>()
-        .HasIndex(c => c.EmergencyId).IsUnique();
-        // unique constraint
+            .HasIndex(c => c.EmergencyId).IsUnique();
 
         modelBuilder.Entity<FireCase>()
-        .HasIndex(c => new { c.CityId, c.Status });
-        //index ndb per read performance se me status ka mu bo query shpesh
-        
+            .HasIndex(c => new { c.CityId, c.Status });
+
         modelBuilder.Entity<FireCase>(entity =>
         {
             entity.ToTable("fire_cases");

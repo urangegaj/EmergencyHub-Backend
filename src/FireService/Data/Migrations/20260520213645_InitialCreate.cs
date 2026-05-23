@@ -49,6 +49,17 @@ namespace FireService.Data.Migrations
                 column: "CityId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_fire_cases_CityId_Status",
+                table: "fire_cases",
+                columns: new[] { "CityId", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_fire_cases_EmergencyId",
+                table: "fire_cases",
+                column: "EmergencyId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_fire_units_CityId",
                 table: "fire_units",
                 column: "CityId");
