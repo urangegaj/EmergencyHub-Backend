@@ -48,6 +48,8 @@ builder.Services.AddGrpcClient<EmergencyService.Grpc.Emergency.EmergencyClient>(
     o.Address = new Uri(builder.Configuration["Services:EmergencyService"]!));
 builder.Services.AddGrpcClient<MedicalService.Medical.MedicalClient>(o =>
     o.Address = new Uri(builder.Configuration["Services:MedicalService"]!));
+builder.Services.AddGrpcClient<AssessmentService.Grpc.Assessment.AssessmentClient>(o =>
+    o.Address = new Uri(builder.Configuration["Services:AssessmentService"]!));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -91,5 +93,6 @@ app.MapEmergencyRoutes();
 app.MapFireRoutes();
 app.MapPoliceRoutes();
 app.MapMedicalRoutes();
+app.MapAssessmentRoutes();
 
 app.Run();
