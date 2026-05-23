@@ -38,9 +38,8 @@ public sealed class EmergencyAssignedConsumer(
                 if (result?.Message is null)
                     continue;
 
-                var persisted = await HandleMessageAsync(result.Message.Value, stoppingToken);
-                if (persisted)
-                    consumer.Commit(result);
+                await HandleMessageAsync(result.Message.Value, stoppingToken);
+                consumer.Commit(result);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -62,16 +61,12 @@ public sealed class EmergencyAssignedConsumer(
         logger.LogInformation("EmergencyAssignedConsumer stopped");
     }
 
-    /// <summary>
-    /// Returns true when the offset may be committed (skipped, invalid, or persisted).
-    /// Returns false when persistence failed and the message should be retried.
-    /// </summary>
-    private async Task<bool> HandleMessageAsync(string? json, CancellationToken ct)
+    private async Task HandleMessageAsync(string? json, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
             logger.LogWarning("Received null or empty message on {Topic}, skipping", Topics.EmergencyAssigned);
-            return true;
+            return;
         }
 
         using var doc = JsonDocument.Parse(json);
@@ -80,28 +75,28 @@ public sealed class EmergencyAssignedConsumer(
         if (!root.TryGetProperty("department_type", out var departmentProp))
         {
             logger.LogWarning("Message missing department_type, skipping");
-            return true;
+            return;
         }
 
         var departmentType = departmentProp.GetString();
         if (!string.Equals(departmentType, "Fire", StringComparison.OrdinalIgnoreCase))
         {
             logger.LogDebug("Ignoring assignment for department {DepartmentType}", departmentType);
-            return true;
+            return;
         }
 
         if (!root.TryGetProperty("emergency_id", out var emergencyIdProp)
             || !Guid.TryParse(emergencyIdProp.GetString(), out var emergencyId))
         {
             logger.LogWarning("Message missing or invalid emergency_id, skipping");
-            return true;
+            return;
         }
 
         if (!root.TryGetProperty("city_id", out var cityIdProp)
             || !Guid.TryParse(cityIdProp.GetString(), out var cityId))
         {
             logger.LogWarning("Message missing or invalid city_id for emergency {EmergencyId}, skipping", emergencyId);
-            return true;
+            return;
         }
 
         using var scope = scopeFactory.CreateScope();
@@ -113,7 +108,7 @@ public sealed class EmergencyAssignedConsumer(
             logger.LogInformation(
                 "Fire case already exists for emergency {EmergencyId}, skipping (idempotent)",
                 emergencyId);
-            return true;
+            return;
         }
 
         var now = DateTime.UtcNow;
@@ -133,7 +128,5 @@ public sealed class EmergencyAssignedConsumer(
             "Created fire case for emergency {EmergencyId} in city {CityId}",
             emergencyId,
             cityId);
-
-        return true;
     }
 }
