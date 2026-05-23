@@ -20,6 +20,8 @@ public sealed class NotificationDispatchService(
         string to,
         string subject,
         string body,
+        string? fromStatus,
+        string? toStatus,
         CancellationToken ct)
     {
         var notification = new Notification
@@ -29,6 +31,8 @@ public sealed class NotificationDispatchService(
             CityId = cityId,
             Type = notificationType,
             EmergencyId = emergencyId,
+            FromStatus = fromStatus,
+            ToStatus = toStatus,
             Status = NotificationStatus.PENDING,
             IsRead = false,
             CreatedAt = DateTime.UtcNow

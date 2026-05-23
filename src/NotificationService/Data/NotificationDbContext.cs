@@ -17,7 +17,11 @@ public class NotificationDbContext(DbContextOptions<NotificationDbContext> optio
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => new { e.CityId, e.CreatedAt });
             entity.HasIndex(e => new { e.EmergencyId, e.Type });
+            entity.HasIndex(e => new { e.EmergencyId, e.Type, e.UserId, e.FromStatus, e.ToStatus })
+                .IsUnique();
             entity.Property(e => e.Type).HasMaxLength(64);
+            entity.Property(e => e.FromStatus).HasMaxLength(64);
+            entity.Property(e => e.ToStatus).HasMaxLength(64);
             entity.Property(e => e.Status).HasConversion<int>();
             entity.Property(e => e.CreatedAt).HasColumnType("timestamptz");
         });

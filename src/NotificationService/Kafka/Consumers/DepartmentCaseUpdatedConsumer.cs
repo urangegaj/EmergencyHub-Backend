@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NotificationService.Data;
 using NotificationService.Models;
@@ -42,7 +41,16 @@ public sealed class DepartmentCaseUpdatedConsumer(
             return;
 
         var departmentType = deptProp.GetString() ?? string.Empty;
-        var status = statusProp.GetString() ?? string.Empty;
+        var caseStatus = statusProp.GetString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(caseStatus))
+        {
+            logger.LogWarning(
+                "department.case.updated missing status for emergency {EmergencyId}; skipping",
+                emergencyId);
+            return;
+        }
+
         root.TryGetProperty("assigned_unit_id", out var unitProp);
         var assignedUnitId = unitProp.ValueKind == JsonValueKind.String ? unitProp.GetString() : null;
 
@@ -60,12 +68,12 @@ public sealed class DepartmentCaseUpdatedConsumer(
             return;
         }
 
-        var subject = $"{departmentType} case {FormatCaseEvent(status)}";
+        var subject = $"{departmentType} case {FormatCaseEvent(caseStatus)}";
         var body =
             $"A department case was updated.\n\n" +
             $"Emergency ID: {emergencyId}\n" +
             $"Department: {departmentType}\n" +
-            $"Case status: {status}\n" +
+            $"Case status: {caseStatus}\n" +
             (assignedUnitId is not null ? $"Assigned unit: {assignedUnitId}\n" : string.Empty) +
             $"City ID: {cityId}";
 
@@ -74,17 +82,20 @@ public sealed class DepartmentCaseUpdatedConsumer(
             if (!Guid.TryParse(user.UserId, out var userId))
                 continue;
 
-            var alreadyNotified = await db.Notifications.AnyAsync(
-                n => n.EmergencyId == emergencyId
-                     && n.Type == NotificationTypes.DepartmentCaseUpdated
-                     && n.UserId == userId,
+            var alreadyNotified = await NotificationIdempotency.ExistsAsync(
+                db,
+                emergencyId,
+                NotificationTypes.DepartmentCaseUpdated,
+                userId,
+                departmentType,
+                caseStatus,
                 ct);
 
             if (alreadyNotified)
             {
-                logger.LogDebug(
-                    "Skipping duplicate department.case.updated notification for user {UserId}, emergency {EmergencyId}",
-                    userId, emergencyId);
+                logger.LogInformation(
+                    "Skipping duplicate department.case.updated for user {UserId}, emergency {EmergencyId}, department {Department}, status {CaseStatus}",
+                    userId, emergencyId, departmentType, caseStatus);
                 continue;
             }
 
@@ -96,6 +107,8 @@ public sealed class DepartmentCaseUpdatedConsumer(
                 user.Email,
                 subject,
                 body,
+                departmentType,
+                caseStatus,
                 ct);
         }
     }

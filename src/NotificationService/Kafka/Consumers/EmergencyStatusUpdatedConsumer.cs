@@ -1,6 +1,5 @@
 using System.Text.Json;
 using EmergencyService.Grpc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NotificationService.Data;
 using NotificationService.Models;
@@ -36,14 +35,27 @@ public sealed class EmergencyStatusUpdatedConsumer(
             !Guid.TryParse(cityIdProp.GetString(), out var cityId))
             return;
 
-        if (!root.TryGetProperty("old_status", out var oldStatusProp))
-            return;
+        var hasOldStatus = root.TryGetProperty("old_status", out var oldStatusProp);
+        var hasNewStatus = root.TryGetProperty("new_status", out var newStatusProp);
 
-        if (!root.TryGetProperty("new_status", out var newStatusProp))
+        if (!hasOldStatus || !hasNewStatus)
+        {
+            logger.LogWarning(
+                "emergency.status.updated missing old_status/new_status for emergency {EmergencyId}; cannot apply transition idempotency",
+                emergencyId);
             return;
+        }
 
-        var oldStatus = oldStatusProp.GetString() ?? string.Empty;
-        var newStatus = newStatusProp.GetString() ?? string.Empty;
+        var fromStatus = oldStatusProp.GetString() ?? string.Empty;
+        var toStatus = newStatusProp.GetString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(fromStatus) || string.IsNullOrWhiteSpace(toStatus))
+        {
+            logger.LogWarning(
+                "emergency.status.updated has empty transition for emergency {EmergencyId}; skipping",
+                emergencyId);
+            return;
+        }
 
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
@@ -66,26 +78,29 @@ public sealed class EmergencyStatusUpdatedConsumer(
         if (reporter is null)
             return;
 
-        var alreadyNotified = await db.Notifications.AnyAsync(
-            n => n.EmergencyId == emergencyId
-                 && n.Type == NotificationTypes.EmergencyStatusUpdated
-                 && n.UserId == reporterId,
+        var alreadyNotified = await NotificationIdempotency.ExistsAsync(
+            db,
+            emergencyId,
+            NotificationTypes.EmergencyStatusUpdated,
+            reporterId,
+            fromStatus,
+            toStatus,
             ct);
 
         if (alreadyNotified)
         {
-            logger.LogDebug(
-                "Skipping duplicate emergency.status.updated notification for user {UserId}, emergency {EmergencyId}",
-                reporterId, emergencyId);
+            logger.LogInformation(
+                "Skipping duplicate emergency.status.updated for user {UserId}, emergency {EmergencyId}, transition {FromStatus} -> {ToStatus}",
+                reporterId, emergencyId, fromStatus, toStatus);
             return;
         }
 
-        var subject = $"Emergency status updated to {newStatus}";
+        var subject = $"Emergency status updated to {toStatus}";
         var body =
             $"Your emergency status has changed.\n\n" +
             $"Emergency ID: {emergencyId}\n" +
-            $"Previous status: {oldStatus}\n" +
-            $"New status: {newStatus}\n" +
+            $"Previous status: {fromStatus}\n" +
+            $"New status: {toStatus}\n" +
             $"City ID: {cityId}";
 
         await dispatch.SendEmailNotificationAsync(
@@ -96,6 +111,8 @@ public sealed class EmergencyStatusUpdatedConsumer(
             reporter.Email,
             subject,
             body,
+            fromStatus,
+            toStatus,
             ct);
     }
 }

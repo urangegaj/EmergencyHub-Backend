@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NotificationService.Data;
 using NotificationService.Models;
@@ -40,6 +39,17 @@ public sealed class EmergencyAssignedConsumer(
             !Guid.TryParse(cityIdProp.GetString(), out var cityId))
             return;
 
+        if (!root.TryGetProperty("assignment_id", out var assignmentIdProp) ||
+            !Guid.TryParse(assignmentIdProp.GetString(), out var assignmentId))
+        {
+            logger.LogWarning(
+                "emergency.assigned missing assignment_id for emergency {EmergencyId}; cannot apply event idempotency",
+                emergencyId);
+            return;
+        }
+
+        var assignmentKey = assignmentId.ToString();
+
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var userLookup = scope.ServiceProvider.GetRequiredService<AuthUserLookupService>();
@@ -59,17 +69,20 @@ public sealed class EmergencyAssignedConsumer(
             if (!Guid.TryParse(user.UserId, out var userId))
                 continue;
 
-            var alreadyNotified = await db.Notifications.AnyAsync(
-                n => n.EmergencyId == emergencyId
-                     && n.Type == NotificationTypes.EmergencyAssigned
-                     && n.UserId == userId,
+            var alreadyNotified = await NotificationIdempotency.ExistsAsync(
+                db,
+                emergencyId,
+                NotificationTypes.EmergencyAssigned,
+                userId,
+                departmentType,
+                assignmentKey,
                 ct);
 
             if (alreadyNotified)
             {
-                logger.LogDebug(
-                    "Skipping duplicate emergency.assigned notification for user {UserId}, emergency {EmergencyId}",
-                    userId, emergencyId);
+                logger.LogInformation(
+                    "Skipping duplicate emergency.assigned for user {UserId}, emergency {EmergencyId}, assignment {AssignmentId}",
+                    userId, emergencyId, assignmentId);
                 continue;
             }
 
@@ -78,6 +91,7 @@ public sealed class EmergencyAssignedConsumer(
                 $"An emergency has been assigned to your department.\n\n" +
                 $"Emergency ID: {emergencyId}\n" +
                 $"Department: {departmentType}\n" +
+                $"Assignment ID: {assignmentId}\n" +
                 $"City ID: {cityId}";
 
             await dispatch.SendEmailNotificationAsync(
@@ -88,6 +102,8 @@ public sealed class EmergencyAssignedConsumer(
                 user.Email,
                 subject,
                 body,
+                departmentType,
+                assignmentKey,
                 ct);
         }
     }
