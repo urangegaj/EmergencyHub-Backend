@@ -8,6 +8,10 @@
 
   <ItemGroup>
     <Protobuf Include="..\EmergencyService\Protos\emergency.proto" GrpcServices="Client" />
+    <Protobuf Include="..\PoliceService\Protos\police.proto" GrpcServices="Client" />
+    <Protobuf Include="..\FireService\Protos\fire.proto" GrpcServices="Client" />
+    <Protobuf Include="..\MedicalService\Protos\medical.proto" GrpcServices="Client" />
+    <Protobuf Include="Protos\assessment.proto" GrpcServices="Server" />
   </ItemGroup>
 
   <ItemGroup>
@@ -15,6 +19,7 @@
     <PackageReference Include="Grpc.AspNetCore" Version="2.57.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.15" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="OpenAI" Version="2.10.0" />
   </ItemGroup>
 
   <ItemGroup>

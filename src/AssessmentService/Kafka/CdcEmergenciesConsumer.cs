@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AssessmentService.Data;
 using AssessmentService.Models;
+using AssessmentService.Services;
 using Confluent.Kafka;
 using EmergencyService.Grpc;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ namespace AssessmentService.Kafka;
 
 public sealed class CdcEmergenciesConsumer(
     AssignmentCache cache,
+    AssessmentPipelineService pipeline,
     IServiceScopeFactory scopeFactory,
     IOptions<KafkaSettings> settings,
     ILogger<CdcEmergenciesConsumer> logger) : BackgroundService
@@ -18,7 +20,7 @@ public sealed class CdcEmergenciesConsumer(
     {
         await Task.Yield();
 
-        var config = new ConsumerConfig
+        var consumerConfig = new ConsumerConfig
         {
             BootstrapServers = settings.Value.BootstrapServers,
             GroupId = settings.Value.GroupId,
@@ -26,7 +28,7 @@ public sealed class CdcEmergenciesConsumer(
             EnableAutoCommit = false
         };
 
-        using var consumer = new ConsumerBuilder<string, string>(config).Build();
+        using var consumer = new ConsumerBuilder<string, string>(consumerConfig).Build();
         consumer.Subscribe(Shared.Kafka.Topics.CdcEmergencies);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -107,16 +109,24 @@ public sealed class CdcEmergenciesConsumer(
             duration_minutes = durationMinutes
         });
 
-        db.Reports.Add(new AssessmentReport
+        var report = new AssessmentReport
         {
             Id = Guid.NewGuid(),
             EmergencyId = emergencyId,
             CityId = cityId,
             ReportPayload = payload,
-            Status = AssessmentReportStatus.Pending,
             CreatedAt = DateTime.UtcNow
-        });
+        };
 
+        var (aiResponse, lastError) = await pipeline.RunAsync(report, ct);
+
+        report.AiResponse = aiResponse;
+        report.LastError = lastError;
+        report.Status = aiResponse != null ? AssessmentReportStatus.Completed : AssessmentReportStatus.Failed;
+        report.SentAt = aiResponse != null ? DateTime.UtcNow : null;
+        report.RetryCount = 0;
+
+        db.Reports.Add(report);
         await db.SaveChangesAsync(ct);
         cache.Remove(emergencyId);
     }
