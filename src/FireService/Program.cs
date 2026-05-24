@@ -1,5 +1,11 @@
 using Confluent.Kafka;
 using FireService.Data;
+using FireService.Features.GetCases;
+using FireService.Features.GetCase;
+using FireService.Features.UpdateCase;
+using FireService.Features.GetUnits;
+using FireService.Features.UpdateUnitStatus;
+using FireService.Features.EmergencyAssigned;
 using FireService.Kafka;
 using FireService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -36,6 +42,13 @@ builder.Services.AddSingleton<IProducer<string, string>>(_ =>
 });
 
 builder.Services.AddHostedService<EmergencyAssignedConsumer>();
+
+builder.Services.AddScoped<IGetCasesHandler, GetCasesHandler>();
+builder.Services.AddScoped<IGetCaseHandler, GetCaseHandler>();
+builder.Services.AddScoped<IUpdateCaseHandler, UpdateCaseHandler>();
+builder.Services.AddScoped<IGetUnitsHandler, GetUnitsHandler>();
+builder.Services.AddScoped<IUpdateUnitStatusHandler, UpdateUnitStatusHandler>();
+builder.Services.AddScoped<IEmergencyAssignedHandler, EmergencyAssignedHandler>();
 
 var app = builder.Build();
 

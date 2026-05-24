@@ -1,5 +1,11 @@
 using Confluent.Kafka;
 using MedicalService.Data;
+using MedicalService.Features.GetCases;
+using MedicalService.Features.GetCase;
+using MedicalService.Features.UpdateCase;
+using MedicalService.Features.GetUnits;
+using MedicalService.Features.UpdateUnitStatus;
+using MedicalService.Features.EmergencyAssigned;
 using MedicalService.Kafka;
 using MedicalService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -36,6 +42,13 @@ builder.Services.AddSingleton<IProducer<string, string>>(_ =>
 });
 
 builder.Services.AddHostedService<EmergencyAssignedConsumer>();
+
+builder.Services.AddScoped<IGetCasesHandler, GetCasesHandler>();
+builder.Services.AddScoped<IGetCaseHandler, GetCaseHandler>();
+builder.Services.AddScoped<IUpdateCaseHandler, UpdateCaseHandler>();
+builder.Services.AddScoped<IGetUnitsHandler, GetUnitsHandler>();
+builder.Services.AddScoped<IUpdateUnitStatusHandler, UpdateUnitStatusHandler>();
+builder.Services.AddScoped<IEmergencyAssignedHandler, EmergencyAssignedHandler>();
 
 var app = builder.Build();
 

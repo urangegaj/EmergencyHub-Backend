@@ -16,6 +16,8 @@ public static class PoliceRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadPolice(tenant)) return Results.Forbid();
+
             try
             {
                 var req = new GetCasesRequest();
@@ -36,6 +38,8 @@ public static class PoliceRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadPolice(tenant)) return Results.Forbid();
+
             try
             {
                 var resp = await police.GetCaseAsync(
@@ -54,6 +58,8 @@ public static class PoliceRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanWritePolice(tenant)) return Results.Forbid();
+
             try
             {
                 if (!Enum.TryParse<PoliceCaseStatus>(body.Status, ignoreCase: true, out var status))
@@ -78,6 +84,8 @@ public static class PoliceRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadPolice(tenant)) return Results.Forbid();
+
             try
             {
                 var resp = await police.GetUnitsAsync(new GetUnitsRequest(), PoliceMeta(tenant, ct));
@@ -94,6 +102,8 @@ public static class PoliceRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanWritePolice(tenant)) return Results.Forbid();
+
             try
             {
                 if (!Enum.TryParse<PoliceUnitStatus>(body.Status, ignoreCase: true, out var status))
@@ -107,6 +117,13 @@ public static class PoliceRoutes
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
     }
+
+
+    private static bool CanReadPolice(TenantContext t) =>
+        t.Role == "Admin" || t.Role == "Dispatcher" || (t.Role == "Responder" && t.Department == "Police");
+
+    private static bool CanWritePolice(TenantContext t) =>
+        t.Role == "Admin" || (t.Role == "Responder" && t.Department == "Police");
 
     private static TenantContext Tenant(HttpContext ctx) =>
         (TenantContext?)ctx.Items[TenantContextMiddleware.ItemsKey]

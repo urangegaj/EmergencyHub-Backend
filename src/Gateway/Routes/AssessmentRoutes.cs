@@ -1,5 +1,6 @@
 using AssessmentService.Grpc;
 using Gateway.Extensions;
+using Gateway.Middleware;
 using Grpc.Core;
 
 namespace Gateway.Routes;
@@ -11,10 +12,15 @@ public static class AssessmentRoutes
         app.MapGet("/api/assessments/{emergencyId}", async (
             string emergencyId,
             Assessment.AssessmentClient assessment,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             if (ValidateEmergencyId(emergencyId) is { } idError)
                 return idError;
+
+            var tenant = Tenant(ctx);
+            if (tenant.Role != "Admin" && tenant.Role != "Dispatcher")
+                return Results.Forbid();
 
             try
             {
@@ -29,10 +35,15 @@ public static class AssessmentRoutes
         app.MapPost("/api/assessments/{emergencyId}/retry", async (
             string emergencyId,
             Assessment.AssessmentClient assessment,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             if (ValidateEmergencyId(emergencyId) is { } idError)
                 return idError;
+
+            var tenant = Tenant(ctx);
+            if (tenant.Role != "Admin")
+                return Results.Forbid();
 
             try
             {
@@ -44,6 +55,10 @@ public static class AssessmentRoutes
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
     }
+
+    private static TenantContext Tenant(HttpContext ctx) =>
+        (TenantContext?)ctx.Items[TenantContextMiddleware.ItemsKey]
+            ?? throw new InvalidOperationException("TenantContext missing.");
 
     private static IResult? ValidateEmergencyId(string id)
     {

@@ -2,6 +2,10 @@ using AuthService;
 using EmergencyService.Grpc;
 using Microsoft.EntityFrameworkCore;
 using NotificationService.Data;
+using NotificationService.Features.EmergencyCreatedNotification;
+using NotificationService.Features.EmergencyAssignedNotification;
+using NotificationService.Features.EmergencyStatusUpdatedNotification;
+using NotificationService.Features.DepartmentCaseUpdatedNotification;
 using NotificationService.Kafka;
 using NotificationService.Kafka.Consumers;
 using NotificationService.Services;
@@ -33,6 +37,11 @@ builder.Services.AddHostedService<EmergencyAssignedConsumer>();
 builder.Services.AddHostedService<EmergencyStatusUpdatedConsumer>();
 builder.Services.AddHostedService<DepartmentCaseUpdatedConsumer>();
 builder.Services.AddHostedService<RetryFailedJobsWorker>();
+
+builder.Services.AddScoped<IEmergencyCreatedNotificationHandler, EmergencyCreatedNotificationHandler>();
+builder.Services.AddScoped<IEmergencyAssignedNotificationHandler, EmergencyAssignedNotificationHandler>();
+builder.Services.AddScoped<IEmergencyStatusUpdatedNotificationHandler, EmergencyStatusUpdatedNotificationHandler>();
+builder.Services.AddScoped<IDepartmentCaseUpdatedNotificationHandler, DepartmentCaseUpdatedNotificationHandler>();
 
 var host = builder.Build();
 

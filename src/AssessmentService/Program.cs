@@ -1,4 +1,7 @@
 using AssessmentService.Data;
+using AssessmentService.Features.GetReport;
+using AssessmentService.Features.RetryReport;
+using AssessmentService.Features.EmergencyCompletion;
 using AssessmentService.Kafka;
 using AssessmentService.Services;
 using EmergencyService.Grpc;
@@ -41,6 +44,10 @@ builder.Services.AddSingleton<AssessmentPipelineService>();
 
 builder.Services.AddHostedService<EmergencyAssignedConsumer>();
 builder.Services.AddHostedService<CdcEmergenciesConsumer>();
+
+builder.Services.AddScoped<IGetReportHandler, GetReportHandler>();
+builder.Services.AddScoped<IRetryReportHandler, RetryReportHandler>();
+builder.Services.AddScoped<IEmergencyCompletionHandler, EmergencyCompletionHandler>();
 
 var app = builder.Build();
 

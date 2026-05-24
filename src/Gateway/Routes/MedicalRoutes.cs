@@ -16,6 +16,8 @@ public static class MedicalRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadMedical(tenant)) return Results.Forbid();
+
             try
             {
                 var req = new GetCasesRequest();
@@ -36,6 +38,8 @@ public static class MedicalRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadMedical(tenant)) return Results.Forbid();
+
             try
             {
                 var resp = await medical.GetCaseAsync(
@@ -54,6 +58,8 @@ public static class MedicalRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanWriteMedical(tenant)) return Results.Forbid();
+
             try
             {
                 if (!Enum.TryParse<MedicalCaseStatus>(body.Status, ignoreCase: true, out var status))
@@ -78,6 +84,8 @@ public static class MedicalRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadMedical(tenant)) return Results.Forbid();
+
             try
             {
                 var resp = await medical.GetUnitsAsync(new GetUnitsRequest(), MedicalMeta(tenant, ct));
@@ -94,6 +102,8 @@ public static class MedicalRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanWriteMedical(tenant)) return Results.Forbid();
+
             try
             {
                 if (!Enum.TryParse<MedicalUnitStatus>(body.Status, ignoreCase: true, out var status))
@@ -107,6 +117,13 @@ public static class MedicalRoutes
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
     }
+
+
+    private static bool CanReadMedical(TenantContext t) =>
+        t.Role == "Admin" || t.Role == "Dispatcher" || (t.Role == "Responder" && t.Department == "Medical");
+
+    private static bool CanWriteMedical(TenantContext t) =>
+        t.Role == "Admin" || (t.Role == "Responder" && t.Department == "Medical");
 
     private static TenantContext Tenant(HttpContext ctx) =>
         (TenantContext?)ctx.Items[TenantContextMiddleware.ItemsKey]

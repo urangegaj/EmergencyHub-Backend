@@ -142,6 +142,9 @@ public static class EmergencyRoutes
                 return Results.BadRequest("At least one department is required.");
 
             var tenant = Tenant(ctx);
+            if (tenant.Role != "Admin" && tenant.Role != "Dispatcher")
+                return Results.Forbid();
+
             try
             {
                 var req = new AssignEmergencyRequest

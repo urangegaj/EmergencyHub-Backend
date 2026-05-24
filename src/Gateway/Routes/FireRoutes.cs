@@ -16,6 +16,8 @@ public static class FireRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadFire(tenant)) return Results.Forbid();
+
             try
             {
                 var req = new GetCasesRequest();
@@ -36,6 +38,8 @@ public static class FireRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadFire(tenant)) return Results.Forbid();
+
             try
             {
                 var resp = await fire.GetCaseAsync(
@@ -54,6 +58,8 @@ public static class FireRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanWriteFire(tenant)) return Results.Forbid();
+
             try
             {
                 if (!Enum.TryParse<FireCaseStatus>(body.Status, ignoreCase: true, out var status))
@@ -78,6 +84,8 @@ public static class FireRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanReadFire(tenant)) return Results.Forbid();
+
             try
             {
                 var resp = await fire.GetUnitsAsync(new GetUnitsRequest(), FireMeta(tenant, ct));
@@ -94,6 +102,8 @@ public static class FireRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (!CanWriteFire(tenant)) return Results.Forbid();
+
             try
             {
                 if (!Enum.TryParse<FireUnitStatus>(body.Status, ignoreCase: true, out var status))
@@ -107,6 +117,13 @@ public static class FireRoutes
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
     }
+
+
+    private static bool CanReadFire(TenantContext t) =>
+        t.Role == "Admin" || t.Role == "Dispatcher" || (t.Role == "Responder" && t.Department == "Fire");
+
+    private static bool CanWriteFire(TenantContext t) =>
+        t.Role == "Admin" || (t.Role == "Responder" && t.Department == "Fire");
 
     private static TenantContext Tenant(HttpContext ctx) =>
         (TenantContext?)ctx.Items[TenantContextMiddleware.ItemsKey]

@@ -18,6 +18,9 @@ public static class DispatcherRoutes
             CancellationToken ct) =>
         {
             var tenant = Tenant(ctx);
+            if (tenant.Role != "Admin" && tenant.Role != "Dispatcher")
+                return Results.Forbid();
+
             try
             {
                 var policeTask = police.GetUnitsAsync(new PoliceService.GetUnitsRequest(), PoliceMeta(tenant, ct)).ResponseAsync;

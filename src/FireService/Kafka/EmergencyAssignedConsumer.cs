@@ -1,8 +1,5 @@
-using System.Text.Json;
 using Confluent.Kafka;
-using FireService.Data;
-using FireService.Models;
-using Microsoft.EntityFrameworkCore;
+using FireService.Features.EmergencyAssigned;
 using Microsoft.Extensions.Options;
 using Shared.Kafka;
 
@@ -38,7 +35,9 @@ public sealed class EmergencyAssignedConsumer(
                 if (result?.Message is null)
                     continue;
 
-                await HandleMessageAsync(result.Message.Value, stoppingToken);
+                using var scope = scopeFactory.CreateScope();
+                var handler = scope.ServiceProvider.GetRequiredService<IEmergencyAssignedHandler>();
+                await handler.HandleAsync(result.Message.Value, stoppingToken);
                 consumer.Commit(result);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -59,74 +58,5 @@ public sealed class EmergencyAssignedConsumer(
 
         consumer.Close();
         logger.LogInformation("EmergencyAssignedConsumer stopped");
-    }
-
-    private async Task HandleMessageAsync(string? json, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            logger.LogWarning("Received null or empty message on {Topic}, skipping", Topics.EmergencyAssigned);
-            return;
-        }
-
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("department_type", out var departmentProp))
-        {
-            logger.LogWarning("Message missing department_type, skipping");
-            return;
-        }
-
-        var departmentType = departmentProp.GetString();
-        if (!string.Equals(departmentType, "Fire", StringComparison.OrdinalIgnoreCase))
-        {
-            logger.LogDebug("Ignoring assignment for department {DepartmentType}", departmentType);
-            return;
-        }
-
-        if (!root.TryGetProperty("emergency_id", out var emergencyIdProp)
-            || !Guid.TryParse(emergencyIdProp.GetString(), out var emergencyId))
-        {
-            logger.LogWarning("Message missing or invalid emergency_id, skipping");
-            return;
-        }
-
-        if (!root.TryGetProperty("city_id", out var cityIdProp)
-            || !Guid.TryParse(cityIdProp.GetString(), out var cityId))
-        {
-            logger.LogWarning("Message missing or invalid city_id for emergency {EmergencyId}, skipping", emergencyId);
-            return;
-        }
-
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<FireDbContext>();
-
-        var exists = await db.Cases.AnyAsync(c => c.EmergencyId == emergencyId, ct);
-        if (exists)
-        {
-            logger.LogInformation(
-                "Fire case already exists for emergency {EmergencyId}, skipping (idempotent)",
-                emergencyId);
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        db.Cases.Add(new FireCase
-        {
-            Id = Guid.NewGuid(),
-            EmergencyId = emergencyId,
-            CityId = cityId,
-            Status = Models.FireCaseStatus.OPEN,
-            CreatedAt = now,
-            UpdatedAt = now
-        });
-
-        await db.SaveChangesAsync(ct);
-
-        logger.LogInformation(
-            "Created fire case for emergency {EmergencyId} in city {CityId}",
-            emergencyId,
-            cityId);
     }
 }

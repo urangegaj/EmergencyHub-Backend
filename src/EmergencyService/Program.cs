@@ -1,5 +1,11 @@
 using Confluent.Kafka;
 using EmergencyService.Data;
+using EmergencyService.Features.CreateEmergency;
+using EmergencyService.Features.GetEmergency;
+using EmergencyService.Features.ListEmergencies;
+using EmergencyService.Features.AssignEmergency;
+using EmergencyService.Features.PollEmergency;
+using EmergencyService.Features.DepartmentCaseUpdated;
 using EmergencyService.Kafka;
 using EmergencyService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -21,6 +27,13 @@ builder.Services.AddSingleton<IProducer<string, string>>(_ =>
         new ProducerConfig { BootstrapServers = builder.Configuration["Kafka:BootstrapServers"] }
     ).Build());
 builder.Services.AddHostedService<DepartmentCaseUpdatedConsumer>();
+
+builder.Services.AddScoped<ICreateEmergencyHandler, CreateEmergencyHandler>();
+builder.Services.AddScoped<IGetEmergencyHandler, GetEmergencyHandler>();
+builder.Services.AddScoped<IListEmergenciesHandler, ListEmergenciesHandler>();
+builder.Services.AddScoped<IAssignEmergencyHandler, AssignEmergencyHandler>();
+builder.Services.AddScoped<IPollEmergencyHandler, PollEmergencyHandler>();
+builder.Services.AddScoped<IDepartmentCaseUpdatedHandler, DepartmentCaseUpdatedHandler>();
 
 builder.Services.AddDbContext<EmergencyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("EmergencyDb")));
