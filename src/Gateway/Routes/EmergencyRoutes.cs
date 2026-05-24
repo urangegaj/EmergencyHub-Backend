@@ -41,6 +41,15 @@ public static class EmergencyRoutes
         }).RequireAuthorization();
 
         app.MapGet("/api/emergencies", async (
+            string? status,
+            string? typeName,
+            long? fromTs,
+            long? toTs,
+            string? q,
+            int? page,
+            int? pageSize,
+            string? sortBy,
+            string? order,
             Emergency.EmergencyClient emergency,
             HttpContext ctx,
             CancellationToken ct) =>
@@ -48,10 +57,21 @@ public static class EmergencyRoutes
             var tenant = Tenant(ctx);
             try
             {
-                var resp = await emergency.ListEmergenciesAsync(
-                    new ListEmergenciesRequest { CityId = tenant.CityId.ToString() },
-                    ct.ToCallOptions());
-                return Results.Ok(resp.Emergencies);
+                var req = new ListEmergenciesRequest
+                {
+                    CityId = tenant.CityId.ToString(),
+                    Status = status ?? "",
+                    TypeName = typeName ?? "",
+                    FromTs = fromTs ?? 0,
+                    ToTs = toTs ?? 0,
+                    Q = q ?? "",
+                    Page = page ?? 1,
+                    PageSize = pageSize ?? 20,
+                    SortBy = sortBy ?? "created_at",
+                    Order = order ?? "desc"
+                };
+                var resp = await emergency.ListEmergenciesAsync(req, ct.ToCallOptions());
+                return Results.Ok(resp);
             }
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();

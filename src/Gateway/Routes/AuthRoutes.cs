@@ -122,6 +122,7 @@ public static class AuthRoutes
         Grpc.Core.StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         Grpc.Core.StatusCode.NotFound => Results.NotFound(ex.Status.Detail),
         Grpc.Core.StatusCode.Unauthenticated => Results.Unauthorized(),
+        Grpc.Core.StatusCode.PermissionDenied => Results.Forbid(),
         _ => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }

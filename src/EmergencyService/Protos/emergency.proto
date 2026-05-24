@@ -27,10 +27,22 @@ message GetEmergencyRequest {
 
 message ListEmergenciesRequest {
   string city_id = 1;
+  string status = 2;
+  string type_name = 3;
+  int64 from_ts = 4;
+  int64 to_ts = 5;
+  string q = 6;
+  int32 page = 7;
+  int32 page_size = 8;
+  string sort_by = 9;
+  string order = 10;
 }
 
 message ListEmergenciesResponse {
   repeated EmergencyResponse emergencies = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
 }
 
 message AssignEmergencyRequest {

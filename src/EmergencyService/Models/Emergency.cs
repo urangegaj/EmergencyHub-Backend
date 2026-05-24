@@ -1,3 +1,4 @@
+using NpgsqlTypes;
 using Shared.Enums;
 
 namespace EmergencyService.Models;
@@ -14,6 +15,7 @@ public class Emergency
     public int Version { get; set; } = 1;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public NpgsqlTsVector? SearchVector { get; set; }
 
     public EmergencyType EmergencyType { get; set; } = null!;
     public ICollection<EmergencyStatusHistory> StatusHistory { get; set; } = [];

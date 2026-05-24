@@ -11,6 +11,7 @@ public class User
     public Guid RoleId { get; set; }
     public DepartmentType? Department { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsActive { get; set; } = true;
 
     public City City { get; set; } = null!;
     public Role Role { get; set; } = null!;

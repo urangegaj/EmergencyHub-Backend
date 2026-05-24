@@ -11,6 +11,11 @@ service Auth {
   rpc Logout (LogoutRequest) returns (LogoutResponse);
   rpc GetUser (GetUserRequest) returns (UserResponse);
   rpc ListDepartmentUsers (ListDepartmentUsersRequest) returns (ListUsersResponse);
+  rpc ListUsers (ListUsersRequest) returns (PagedUsersResponse);
+  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse);
+  rpc UpdateUser (UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeactivateUser (DeactivateUserRequest) returns (DeactivateUserResponse);
+  rpc AssignRole (AssignRoleRequest) returns (AssignRoleResponse);
 }
 
 message RegisterRequest {
@@ -72,3 +77,67 @@ message UserResponse {
 message ListUsersResponse {
   repeated UserResponse users = 1;
 }
+
+message AdminUserResponse {
+  string user_id = 1;
+  string email = 2;
+  string role = 3;
+  optional string department = 4;
+  string first_name = 5;
+  string last_name = 6;
+  optional string phone = 7;
+  bool is_active = 8;
+  string created_at = 9;
+}
+
+message ListUsersRequest {
+  string role = 1;
+  string department = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message PagedUsersResponse {
+  repeated AdminUserResponse users = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string password = 2;
+  string role = 3;
+  string first_name = 4;
+  string last_name = 5;
+  optional string department = 6;
+  optional string phone = 7;
+}
+
+message CreateUserResponse {
+  string user_id = 1;
+}
+
+message UpdateUserRequest {
+  string user_id = 1;
+  optional string first_name = 2;
+  optional string last_name = 3;
+  optional string phone = 4;
+  optional string department = 5;
+}
+
+message UpdateUserResponse {}
+
+message DeactivateUserRequest {
+  string user_id = 1;
+}
+
+message DeactivateUserResponse {}
+
+message AssignRoleRequest {
+  string user_id = 1;
+  string role = 2;
+  optional string department = 3;
+}
+
+message AssignRoleResponse {}

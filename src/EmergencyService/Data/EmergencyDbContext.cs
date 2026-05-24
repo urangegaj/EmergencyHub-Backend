@@ -15,6 +15,13 @@ public class EmergencyDbContext(DbContextOptions<EmergencyDbContext> options) : 
         modelBuilder.Entity<Emergency>()
             .HasIndex(e => new { e.CityId, e.Status });
 
+        modelBuilder.Entity<Emergency>()
+            .Property(e => e.SearchVector)
+            .HasColumnType("tsvector")
+            .HasComputedColumnSql(
+                "to_tsvector('english', coalesce(\"Description\", '') || ' ' || coalesce(\"Address\", ''))",
+                stored: true);
+
         modelBuilder.Entity<EmergencyAssignment>()
             .HasIndex(a => new { a.EmergencyId, a.DepartmentType })
             .IsUnique();

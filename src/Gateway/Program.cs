@@ -94,5 +94,7 @@ app.MapFireRoutes();
 app.MapPoliceRoutes();
 app.MapMedicalRoutes();
 app.MapAssessmentRoutes();
+app.MapAdminRoutes();
+app.MapDispatcherRoutes();
 
 app.Run();

@@ -174,8 +174,8 @@ Only RESOLVED triggers Debezium → Assessment pipeline (CANCELLED does not prod
 - Manages unit availability status (available, busy, offline)
 
 ### Admin
-- Manages city (tenant) configuration
-- Creates and manages user accounts and role assignments
+- Cities are created and managed exclusively via DB seed scripts and EF Core migrations — there is no runtime city CRUD API.
+- Creates and manages user accounts and role assignments within their city via `GET/POST/PATCH/DELETE /api/admin/users` and `PATCH /api/admin/users/{id}/role`. These routes forward to the Auth gRPC service and are gated to the Admin role in the Gateway.
 - Has read access across all entities within their city
 
 ### Assessment Flow (automated, no user action required)
@@ -190,9 +190,13 @@ Only RESOLVED triggers Debezium → Assessment pipeline (CANCELLED does not prod
    - `FAILED` → show an error message with a "Retry" button that hits the manual retry RPC on Assessment Service via the gateway
 
 ### Search & Filtering
-- Dispatcher and Admin can filter active/historical emergencies by status, type, date range, and free-text on description or address
-- Free-text search is backed by a Postgres **`tsvector` GIN index** on `Emergency(description, address)` for efficient `to_tsquery` matching — `ILIKE '%...%'` is avoided
+- Dispatcher and Admin can filter active/historical emergencies by status, type, date range, and free-text on description or address via `GET /api/emergencies?status=&typeName=&fromTs=&toTs=&q=&page=&pageSize=&sortBy=&order=`
+- Free-text search is backed by a Postgres **`tsvector` GIN index** on `Emergency(description, address)` for efficient `PlainToTsQuery` matching — `ILIKE '%...%'` is avoided
+- `ListEmergencies` returns a paginated response with `total_count`, `page`, and `page_size` fields. The unfiltered path is served from Redis cache (30s TTL); any filter present bypasses the cache.
 - All filters are tenant-scoped server-side — `city_id` is never accepted as a query parameter
+
+### Dispatcher Unit Availability
+- `GET /api/dispatcher/units` fans out to Police, Medical, and Fire `GetUnits` gRPC calls in parallel via `Task.WhenAll`, returning a single aggregated response grouped by department.
 
 ---
 
