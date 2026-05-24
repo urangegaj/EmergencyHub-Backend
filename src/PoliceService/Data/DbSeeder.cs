@@ -6,7 +6,7 @@ namespace PoliceService.Data;
 public static class DbSeeder
 {
     public static readonly Guid DevSeedCityId =
-        Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        Guid.Parse("10000000-0000-0000-0000-000000000001");
 
     public static async Task SeedAsync(PoliceDbContext db)
     {

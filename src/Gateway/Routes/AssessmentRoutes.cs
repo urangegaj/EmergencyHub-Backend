@@ -73,10 +73,11 @@ public static class AssessmentRoutes
 
     private static IResult MapRpcError(RpcException ex) => ex.StatusCode switch
     {
-        StatusCode.NotFound        => Results.NotFound(ex.Status.Detail),
+        StatusCode.NotFound => Results.NotFound(ex.Status.Detail),
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
-        StatusCode.AlreadyExists   => Results.Conflict(ex.Status.Detail),
-        _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
+        StatusCode.AlreadyExists => Results.Conflict(ex.Status.Detail),
+        StatusCode.FailedPrecondition => Results.BadRequest(ex.Status.Detail),
+        _ => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }

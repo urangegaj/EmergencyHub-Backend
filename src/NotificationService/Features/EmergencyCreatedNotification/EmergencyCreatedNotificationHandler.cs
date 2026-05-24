@@ -42,14 +42,14 @@ public class EmergencyCreatedNotificationHandler(
 
         db.Notifications.Add(new Notification
         {
-            Id          = Guid.NewGuid(),
-            UserId      = userId,
-            CityId      = cityId,
-            Type        = NotificationTypes.EmergencyCreated,
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            CityId = cityId,
+            Type = NotificationTypes.EmergencyCreated,
             EmergencyId = emergencyId,
-            Status      = NotificationStatus.IN_APP_ONLY,
-            IsRead      = false,
-            CreatedAt   = DateTime.UtcNow
+            Status = NotificationStatus.IN_APP_ONLY,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
         });
 
         await db.SaveChangesAsync(ct);

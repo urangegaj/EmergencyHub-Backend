@@ -71,7 +71,13 @@ public static class EmergencyRoutes
                     Order = order ?? "desc"
                 };
                 var resp = await emergency.ListEmergenciesAsync(req, ct.ToCallOptions());
-                return Results.Ok(resp);
+                return Results.Ok(new
+                {
+                    items = resp.Emergencies,
+                    total = resp.TotalCount,
+                    page = resp.Page,
+                    pageSize = resp.PageSize,
+                });
             }
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
@@ -117,9 +123,9 @@ public static class EmergencyRoutes
                 var resp = await emergency.PollEmergencyAsync(
                     new PollEmergencyRequest
                     {
-                        EmergencyId    = id,
-                        CityId         = tenant.CityId.ToString(),
-                        Since          = since,
+                        EmergencyId = id,
+                        CityId = tenant.CityId.ToString(),
+                        Since = since,
                         TimeoutSeconds = timeout ?? 30
                     },
                     ct.ToCallOptions());
@@ -179,12 +185,12 @@ public static class EmergencyRoutes
 
     private static IResult MapRpcError(RpcException ex) => ex.StatusCode switch
     {
-        StatusCode.NotFound        => Results.NotFound(ex.Status.Detail),
+        StatusCode.NotFound => Results.NotFound(ex.Status.Detail),
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
-        StatusCode.AlreadyExists   => Results.Conflict(ex.Status.Detail),
-        StatusCode.Aborted         => Results.Conflict(ex.Status.Detail),
-        _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
+        StatusCode.AlreadyExists => Results.Conflict(ex.Status.Detail),
+        StatusCode.Aborted => Results.Conflict(ex.Status.Detail),
+        _ => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }
 

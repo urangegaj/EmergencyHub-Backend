@@ -3,6 +3,6 @@ namespace MedicalService.Models;
 public enum MedicalUnitStatus
 {
     AVAILABLE,
-    DEPLOYED,
-    OUT_OF_SERVICE
+    ON_SCENE,
+    OFF_DUTY
 }

@@ -48,6 +48,16 @@ public class TokenService
         if (user.Department.HasValue)
             claims.Add(new Claim(ClaimNames.Department, user.Department.Value.ToString()));
 
+        if (user.Profile is not null)
+        {
+            if (!string.IsNullOrEmpty(user.Profile.FirstName))
+                claims.Add(new Claim(ClaimNames.FirstName, user.Profile.FirstName));
+            if (!string.IsNullOrEmpty(user.Profile.LastName))
+                claims.Add(new Claim(ClaimNames.LastName, user.Profile.LastName));
+            if (!string.IsNullOrEmpty(user.Profile.Phone))
+                claims.Add(new Claim(ClaimNames.Phone, user.Profile.Phone));
+        }
+
         var credentials = new SigningCredentials(_privateKey, SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(

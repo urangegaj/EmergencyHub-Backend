@@ -45,7 +45,7 @@ public class EmergencyStatusUpdatedNotificationHandler(
         }
 
         var fromStatus = oldStatusProp.GetString() ?? string.Empty;
-        var toStatus   = newStatusProp.GetString() ?? string.Empty;
+        var toStatus = newStatusProp.GetString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(fromStatus) || string.IsNullOrWhiteSpace(toStatus))
         {
@@ -59,7 +59,7 @@ public class EmergencyStatusUpdatedNotificationHandler(
             new GetEmergencyRequest
             {
                 EmergencyId = emergencyId.ToString(),
-                CityId      = cityId.ToString()
+                CityId = cityId.ToString()
             },
             cancellationToken: ct);
 

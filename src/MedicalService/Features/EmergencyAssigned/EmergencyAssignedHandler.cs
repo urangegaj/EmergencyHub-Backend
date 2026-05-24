@@ -59,12 +59,12 @@ public class EmergencyAssignedHandler(
         var now = DateTime.UtcNow;
         db.Cases.Add(new MedicalService.Models.MedicalCase
         {
-            Id          = Guid.NewGuid(),
+            Id = Guid.NewGuid(),
             EmergencyId = emergencyId,
-            CityId      = cityId,
-            Status      = DomainMedicalCaseStatus.OPEN,
-            CreatedAt   = now,
-            UpdatedAt   = now
+            CityId = cityId,
+            Status = DomainMedicalCaseStatus.OPEN,
+            CreatedAt = now,
+            UpdatedAt = now
         });
 
         await db.SaveChangesAsync(ct);

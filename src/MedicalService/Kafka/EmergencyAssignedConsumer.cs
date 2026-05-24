@@ -17,9 +17,11 @@ public sealed class EmergencyAssignedConsumer(
         var config = new ConsumerConfig
         {
             BootstrapServers = settings.Value.BootstrapServers,
-            GroupId          = settings.Value.GroupId,
-            AutoOffsetReset  = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false
+            GroupId = settings.Value.GroupId,
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false,
+            AllowAutoCreateTopics = false,
+            TopicMetadataRefreshIntervalMs = 10000
         };
 
         using var consumer = new ConsumerBuilder<string, string>(config).Build();

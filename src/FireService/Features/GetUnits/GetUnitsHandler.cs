@@ -21,10 +21,10 @@ public class GetUnitsHandler(FireDbContext db, IRedisCache cache) : IGetUnitsHan
             var hit = new GetUnitsResponse();
             hit.Units.AddRange(cached.Select(u => new FireUnitResponse
             {
-                Id     = u.Id,
+                Id = u.Id,
                 CityId = u.CityId,
-                Name   = u.Name,
-                Status = Enum.Parse<FireUnitStatus>(u.Status)
+                Name = u.Name,
+                Status = (FireUnitStatus)Enum.Parse<FireService.Models.FireUnitStatus>(u.Status)
             }));
             return hit;
         }

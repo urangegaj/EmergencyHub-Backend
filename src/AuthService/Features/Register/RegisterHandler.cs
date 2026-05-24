@@ -12,6 +12,15 @@ public class RegisterHandler(AuthDbContext db) : IRegisterHandler
 {
     public async Task<RegisterResponse> HandleAsync(RegisterRequest request, ServerCallContext context)
     {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "email is required."));
+        if (string.IsNullOrWhiteSpace(request.Password))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "password is required."));
+        if (string.IsNullOrWhiteSpace(request.FirstName))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "firstName is required."));
+        if (string.IsNullOrWhiteSpace(request.CityId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "cityId is required."));
+
         if (await db.Users.AnyAsync(u => u.Email == request.Email))
             throw new RpcException(new Status(StatusCode.AlreadyExists, "Email already in use."));
 

@@ -3,12 +3,23 @@ using EmergencyService.Grpc;
 using EmergencyService.Services;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using Shared.Enums;
 
 namespace EmergencyService.Features.Shared;
 
 internal static class EmergencyMapper
 {
     internal static string CacheKey(Guid cityId) => $"emergencies:city:{cityId}";
+
+    private static string StatusString(EmergencyStatus s) => s switch
+    {
+        EmergencyStatus.Reported => "REPORTED",
+        EmergencyStatus.Dispatched => "DISPATCHED",
+        EmergencyStatus.InProgress => "IN_PROGRESS",
+        EmergencyStatus.Resolved => "RESOLVED",
+        EmergencyStatus.Cancelled => "CANCELLED",
+        _ => s.ToString().ToUpperInvariant()
+    };
 
     internal static async Task<Models.Emergency> FetchAsync(
         EmergencyDbContext db, Guid emergencyId, Guid cityId, CancellationToken ct)
@@ -27,7 +38,7 @@ internal static class EmergencyMapper
         e.EmergencyType?.Name ?? "",
         e.Description,
         e.Address,
-        e.Status.ToString(),
+        StatusString(e.Status),
         e.Version,
         e.CreatedAt.ToString("O"),
         e.UpdatedAt.ToString("O"),
@@ -81,7 +92,7 @@ internal static class EmergencyMapper
             EmergencyTypeName = e.EmergencyType?.Name ?? "",
             Description = e.Description,
             Address = e.Address,
-            Status = e.Status.ToString(),
+            Status = StatusString(e.Status),
             Version = e.Version,
             CreatedAt = e.CreatedAt.ToString("O"),
             UpdatedAt = e.UpdatedAt.ToString("O")

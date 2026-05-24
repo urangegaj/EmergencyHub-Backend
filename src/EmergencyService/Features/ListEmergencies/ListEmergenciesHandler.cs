@@ -23,10 +23,15 @@ public class ListEmergenciesHandler(EmergencyDbContext db, IRedisCache cache) : 
             || !string.IsNullOrEmpty(request.TypeName)
             || request.FromTs != 0
             || request.ToTs != 0
-            || !string.IsNullOrEmpty(request.Q);
+            || !string.IsNullOrEmpty(request.Q)
+            || (!string.IsNullOrEmpty(request.SortBy) && request.SortBy != "created_at")
+            || (!string.IsNullOrEmpty(request.Order) && request.Order != "desc");
 
         if (!isFiltered)
         {
+            var unfilteredPage = request.Page > 0 ? request.Page : 1;
+            var unfilteredPageSize = request.PageSize > 0 ? request.PageSize : 20;
+
             var cacheKey = EmergencyMapper.CacheKey(cityId);
             var cached = await cache.GetAsync<List<CachedEmergency>>(cacheKey);
             if (cached is not null)
@@ -34,10 +39,13 @@ public class ListEmergenciesHandler(EmergencyDbContext db, IRedisCache cache) : 
                 var hit = new ListEmergenciesResponse
                 {
                     TotalCount = cached.Count,
-                    Page = 1,
-                    PageSize = cached.Count
+                    Page = unfilteredPage,
+                    PageSize = unfilteredPageSize
                 };
-                hit.Emergencies.AddRange(cached.Select(EmergencyMapper.ToResponseFromCached));
+                hit.Emergencies.AddRange(cached
+                    .Skip((unfilteredPage - 1) * unfilteredPageSize)
+                    .Take(unfilteredPageSize)
+                    .Select(EmergencyMapper.ToResponseFromCached));
                 return hit;
             }
 
@@ -53,11 +61,22 @@ public class ListEmergenciesHandler(EmergencyDbContext db, IRedisCache cache) : 
             var unfiltered = new ListEmergenciesResponse
             {
                 TotalCount = all.Count,
-                Page = 1,
-                PageSize = all.Count
+                Page = unfilteredPage,
+                PageSize = unfilteredPageSize
             };
-            unfiltered.Emergencies.AddRange(all.Select(EmergencyMapper.ToResponse));
+            unfiltered.Emergencies.AddRange(all
+                .Skip((unfilteredPage - 1) * unfilteredPageSize)
+                .Take(unfilteredPageSize)
+                .Select(EmergencyMapper.ToResponse));
             return unfiltered;
+        }
+
+        if (!string.IsNullOrEmpty(request.Status)
+            && !Enum.TryParse<EmergencyStatus>(request.Status, ignoreCase: true, out _))
+        {
+            var emptyPage = request.Page > 0 ? request.Page : 1;
+            var emptyPageSize = request.PageSize > 0 ? request.PageSize : 20;
+            return new ListEmergenciesResponse { TotalCount = 0, Page = emptyPage, PageSize = emptyPageSize };
         }
 
         var query = db.Emergencies

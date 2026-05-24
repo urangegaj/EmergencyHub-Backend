@@ -16,9 +16,10 @@ public sealed class CdcEmergenciesConsumer(
         var consumerConfig = new ConsumerConfig
         {
             BootstrapServers = settings.Value.BootstrapServers,
-            GroupId          = settings.Value.GroupId,
-            AutoOffsetReset  = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false
+            GroupId = settings.Value.GroupId,
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false,
+            TopicMetadataRefreshIntervalMs = 10000
         };
 
         using var consumer = new ConsumerBuilder<string, string>(consumerConfig).Build();

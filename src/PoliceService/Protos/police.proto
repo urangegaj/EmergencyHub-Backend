@@ -12,8 +12,8 @@ enum PoliceCaseStatus {
 
 enum PoliceUnitStatus {
   AVAILABLE = 0;
-  DEPLOYED = 1;
-  OUT_OF_SERVICE = 2;
+  ON_SCENE = 1;
+  OFF_DUTY = 2;
 }
 
 service Police {

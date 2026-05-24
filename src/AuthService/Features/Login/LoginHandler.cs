@@ -17,13 +17,19 @@ public class LoginHandler(
 
     public async Task<LoginResponse> HandleAsync(LoginRequest request, ServerCallContext context)
     {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "email is required."));
+        if (string.IsNullOrWhiteSpace(request.Password))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "password is required."));
+
         var user = await db.Users
             .Include(u => u.Role)
+            .Include(u => u.Profile)
             .FirstOrDefaultAsync(u => u.Email == request.Email)
-            ?? throw new RpcException(new Status(StatusCode.NotFound, "Invalid credentials."));
+            ?? throw new RpcException(new Status(StatusCode.Unauthenticated, "Invalid credentials."));
 
         if (!user.IsActive)
-            throw new RpcException(new Status(StatusCode.PermissionDenied, "Account is deactivated."));
+            throw new RpcException(new Status(StatusCode.Unauthenticated, "Invalid credentials."));
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new RpcException(new Status(StatusCode.Unauthenticated, "Invalid credentials."));

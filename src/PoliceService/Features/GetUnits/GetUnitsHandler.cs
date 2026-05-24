@@ -21,10 +21,10 @@ public class GetUnitsHandler(PoliceDbContext db, IRedisCache cache) : IGetUnitsH
             var hit = new GetUnitsResponse();
             hit.Units.AddRange(cached.Select(u => new PoliceUnitResponse
             {
-                Id     = u.Id,
+                Id = u.Id,
                 CityId = u.CityId,
-                Name   = u.Name,
-                Status = Enum.Parse<PoliceUnitStatus>(u.Status)
+                Name = u.Name,
+                Status = (PoliceUnitStatus)Enum.Parse<PoliceService.Models.PoliceUnitStatus>(u.Status)
             }));
             return hit;
         }

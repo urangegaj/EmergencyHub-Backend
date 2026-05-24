@@ -20,7 +20,8 @@ public sealed class EmergencyAssignedConsumer(
             GroupId = settings.Value.GroupId,
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false,
-            AllowAutoCreateTopics = false
+            AllowAutoCreateTopics = false,
+            TopicMetadataRefreshIntervalMs = 10000
         };
 
         using var consumer = new ConsumerBuilder<string, string>(config).Build();

@@ -60,7 +60,7 @@ public class UpdateCaseHandler(
                     ?? throw new RpcException(new Status(StatusCode.NotFound, "Medical unit not found."));
 
                 medicalCase.AssignedUnitId = unit.Id;
-                unit.Status = DomainMedicalUnitStatus.DEPLOYED;
+                unit.Status = DomainMedicalUnitStatus.ON_SCENE;
             }
 
             if (newStatus == DomainMedicalCaseStatus.CLOSED)
@@ -89,10 +89,10 @@ public class UpdateCaseHandler(
         var payload = JsonSerializer.Serialize(new
         {
             emergency_id = medicalCase.EmergencyId.ToString(),
-            case_id      = medicalCase.Id.ToString(),
-            city_id      = medicalCase.CityId.ToString(),
+            case_id = medicalCase.Id.ToString(),
+            city_id = medicalCase.CityId.ToString(),
             department_type = "Medical",
-            status       = newStatus.ToString(),
+            status = newStatus.ToString(),
             assigned_unit_id = medicalCase.AssignedUnitId?.ToString()
         });
 

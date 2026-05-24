@@ -59,12 +59,12 @@ public class EmergencyAssignedHandler(
         var now = DateTime.UtcNow;
         db.Cases.Add(new PoliceService.Models.PoliceCase
         {
-            Id          = Guid.NewGuid(),
+            Id = Guid.NewGuid(),
             EmergencyId = emergencyId,
-            CityId      = cityId,
-            Status      = DomainPoliceCaseStatus.OPEN,
-            CreatedAt   = now,
-            UpdatedAt   = now
+            CityId = cityId,
+            Status = DomainPoliceCaseStatus.OPEN,
+            CreatedAt = now,
+            UpdatedAt = now
         });
 
         await db.SaveChangesAsync(ct);

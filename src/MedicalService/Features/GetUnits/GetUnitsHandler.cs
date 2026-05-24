@@ -21,10 +21,10 @@ public class GetUnitsHandler(MedicalDbContext db, IRedisCache cache) : IGetUnits
             var hit = new GetUnitsResponse();
             hit.Units.AddRange(cached.Select(u => new MedicalUnitResponse
             {
-                Id     = u.Id,
+                Id = u.Id,
                 CityId = u.CityId,
-                Name   = u.Name,
-                Status = Enum.Parse<MedicalUnitStatus>(u.Status)
+                Name = u.Name,
+                Status = (MedicalUnitStatus)Enum.Parse<MedicalService.Models.MedicalUnitStatus>(u.Status)
             }));
             return hit;
         }

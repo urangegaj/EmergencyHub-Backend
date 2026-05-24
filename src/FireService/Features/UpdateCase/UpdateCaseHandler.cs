@@ -59,7 +59,7 @@ public class UpdateCaseHandler(
                     ?? throw new RpcException(new Status(StatusCode.NotFound, "Fire unit not found."));
 
                 fireCase.AssignedUnitId = unit.Id;
-                unit.Status = DomainFireUnitStatus.DEPLOYED;
+                unit.Status = DomainFireUnitStatus.ON_SCENE;
             }
 
             if (newStatus == DomainFireCaseStatus.CLOSED)

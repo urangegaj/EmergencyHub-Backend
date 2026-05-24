@@ -20,7 +20,7 @@ public class PollEmergencyHandler(EmergencyDbContext db, PollRegistry pollRegist
         {
             <= 0 => 30,
             > 60 => 60,
-            _    => request.TimeoutSeconds
+            _ => request.TimeoutSeconds
         };
 
         var tcs = pollRegistry.Subscribe(emergencyId);
@@ -31,7 +31,7 @@ public class PollEmergencyHandler(EmergencyDbContext db, PollRegistry pollRegist
                 return EmergencyMapper.ToResponse(emergency);
 
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-            using var linkedCts  = CancellationTokenSource.CreateLinkedTokenSource(
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 context.CancellationToken, timeoutCts.Token);
 
             try

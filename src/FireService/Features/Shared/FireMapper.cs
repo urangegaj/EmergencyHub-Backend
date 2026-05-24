@@ -27,12 +27,12 @@ internal static class FireMapper
     {
         var response = new FireCaseResponse
         {
-            Id          = c.Id.ToString(),
+            Id = c.Id.ToString(),
             EmergencyId = c.EmergencyId.ToString(),
-            CityId      = c.CityId.ToString(),
-            Status      = (FireCaseStatus)c.Status,
-            CreatedAt   = c.CreatedAt.ToString("O"),
-            UpdatedAt   = c.UpdatedAt.ToString("O"),
+            CityId = c.CityId.ToString(),
+            Status = (FireCaseStatus)c.Status,
+            CreatedAt = c.CreatedAt.ToString("O"),
+            UpdatedAt = c.UpdatedAt.ToString("O"),
         };
 
         if (c.AssignedUnitId.HasValue)
@@ -49,9 +49,9 @@ internal static class FireMapper
 
     internal static FireUnitResponse MapUnit(FireUnit u) => new()
     {
-        Id     = u.Id.ToString(),
+        Id = u.Id.ToString(),
         CityId = u.CityId.ToString(),
-        Name   = u.Name,
+        Name = u.Name,
         Status = (FireUnitStatus)u.Status,
     };
 }

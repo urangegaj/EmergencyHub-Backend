@@ -1,0 +1,9 @@
+{
+  "users": [
+    { "key": "admin",      "email": "admin@test.com",      "password": "TestPass123!", "role": "Admin" },
+    { "key": "dispatcher", "email": "dispatcher@test.com", "password": "TestPass123!", "role": "Dispatcher" },
+    { "key": "fire",       "email": "fire@test.com",       "password": "TestPass123!", "role": "Responder", "department": "Fire" },
+    { "key": "police",     "email": "police@test.com",     "password": "TestPass123!", "role": "Responder", "department": "Police" },
+    { "key": "medical",    "email": "medical@test.com",    "password": "TestPass123!", "role": "Responder", "department": "Medical" }
+  ]
+}

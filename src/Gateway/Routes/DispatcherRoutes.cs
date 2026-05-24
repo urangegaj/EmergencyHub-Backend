@@ -24,15 +24,15 @@ public static class DispatcherRoutes
             try
             {
                 var policeTask = police.GetUnitsAsync(new PoliceService.GetUnitsRequest(), PoliceMeta(tenant, ct)).ResponseAsync;
-                var fireTask   = fire.GetUnitsAsync(new FireService.GetUnitsRequest(), FireMeta(tenant, ct)).ResponseAsync;
-                var medTask    = medical.GetUnitsAsync(new MedicalService.GetUnitsRequest(), MedicalMeta(tenant, ct)).ResponseAsync;
+                var fireTask = fire.GetUnitsAsync(new FireService.GetUnitsRequest(), FireMeta(tenant, ct)).ResponseAsync;
+                var medTask = medical.GetUnitsAsync(new MedicalService.GetUnitsRequest(), MedicalMeta(tenant, ct)).ResponseAsync;
 
                 await Task.WhenAll(policeTask, fireTask, medTask);
 
                 return Results.Ok(new
                 {
-                    police  = policeTask.Result.Units,
-                    fire    = fireTask.Result.Units,
+                    police = policeTask.Result.Units,
+                    fire = fireTask.Result.Units,
                     medical = medTask.Result.Units
                 });
             }
@@ -55,10 +55,10 @@ public static class DispatcherRoutes
 
     private static IResult MapRpcError(RpcException ex) => ex.StatusCode switch
     {
-        StatusCode.NotFound        => Results.NotFound(ex.Status.Detail),
+        StatusCode.NotFound => Results.NotFound(ex.Status.Detail),
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
-        StatusCode.Unavailable     => Results.StatusCode(503),
-        _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
+        StatusCode.Unavailable => Results.StatusCode(503),
+        _ => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }

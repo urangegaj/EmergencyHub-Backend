@@ -16,6 +16,9 @@ public class DeactivateUserHandler(AuthDbContext db) : IDeactivateUserHandler
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, context.CancellationToken)
             ?? throw new RpcException(new Status(StatusCode.NotFound, "User not found."));
 
+        if (!user.IsActive)
+            throw new RpcException(new Status(StatusCode.NotFound, "User not found."));
+
         user.IsActive = false;
         await db.SaveChangesAsync(context.CancellationToken);
         return new DeactivateUserResponse();

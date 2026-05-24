@@ -56,8 +56,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FireDbContext>();
     await db.Database.MigrateAsync();
-    if (app.Environment.IsDevelopment())
-        await DbSeeder.SeedAsync(db);
+    await DbSeeder.SeedAsync(db);
 }
 
 app.MapGrpcService<FireGrpcService>();

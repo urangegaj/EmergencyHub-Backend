@@ -1,3 +1,4 @@
+using Gateway.Extensions;
 using Gateway.Middleware;
 using Gateway.Routes;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -19,6 +20,11 @@ for (var attempt = 0; attempt < 10; attempt++)
 if (jwksJson is null) throw new InvalidOperationException($"Could not reach JWKS endpoint at {jwksUri} after 10 attempts.");
 var jwks = new JsonWebKeySet(jwksJson);
 var signingKeys = jwks.GetSigningKeys();
+
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new ProtoEnumJsonConverterFactory());
+});
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -87,6 +93,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value;
+    if (path is { Length: > 1 } && path.EndsWith('/'))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    await next(context);
+});
 
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseAuthentication();

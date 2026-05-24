@@ -56,6 +56,10 @@ public class AssignEmergencyHandler(
                 ?? throw new RpcException(new Status(StatusCode.NotFound, "Emergency not found."));
 
             var existingDepts = emergency.Assignments.Select(a => a.DepartmentType).ToHashSet();
+            if (departments.All(d => existingDepts.Contains(d)))
+                throw new RpcException(new Status(StatusCode.AlreadyExists,
+                    "All requested departments are already assigned to this emergency."));
+
             foreach (var dept in departments)
             {
                 if (existingDepts.Contains(dept)) continue;

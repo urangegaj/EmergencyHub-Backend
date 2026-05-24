@@ -27,6 +27,7 @@ public class RefreshTokenHandler(
 
         var user = await db.Users
             .Include(u => u.Role)
+            .Include(u => u.Profile)
             .FirstOrDefaultAsync(u => u.Id == userId)
             ?? throw new RpcException(new Status(StatusCode.NotFound, "User not found."));
 

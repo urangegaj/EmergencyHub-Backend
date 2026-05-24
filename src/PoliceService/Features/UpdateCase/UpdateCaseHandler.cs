@@ -60,7 +60,7 @@ public class UpdateCaseHandler(
                     ?? throw new RpcException(new Status(StatusCode.NotFound, "Police unit not found."));
 
                 policeCase.AssignedUnitId = unit.Id;
-                unit.Status = DomainPoliceUnitStatus.DEPLOYED;
+                unit.Status = DomainPoliceUnitStatus.ON_SCENE;
             }
 
             if (newStatus == DomainPoliceCaseStatus.CLOSED)
@@ -89,10 +89,10 @@ public class UpdateCaseHandler(
         var payload = JsonSerializer.Serialize(new
         {
             emergency_id = policeCase.EmergencyId.ToString(),
-            case_id      = policeCase.Id.ToString(),
-            city_id      = policeCase.CityId.ToString(),
+            case_id = policeCase.Id.ToString(),
+            city_id = policeCase.CityId.ToString(),
             department_type = "Police",
-            status       = newStatus.ToString(),
+            status = newStatus.ToString(),
             assigned_unit_id = policeCase.AssignedUnitId?.ToString()
         });
 

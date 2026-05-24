@@ -18,7 +18,9 @@ public sealed class EmergencyAssignedConsumer(
             BootstrapServers = settings.Value.BootstrapServers,
             GroupId = settings.Value.GroupId,
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false
+            EnableAutoCommit = false,
+            AllowAutoCreateTopics = false,
+            TopicMetadataRefreshIntervalMs = 10000
         };
 
         using var consumer = new ConsumerBuilder<string, string>(config).Build();

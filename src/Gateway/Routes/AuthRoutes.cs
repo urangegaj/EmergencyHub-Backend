@@ -16,12 +16,12 @@ public static class AuthRoutes
             {
                 var req = new RegisterRequest
                 {
-                    Email = body.Email,
-                    Password = body.Password,
-                    Role = body.Role,
-                    FirstName = body.FirstName,
-                    LastName = body.LastName,
-                    CityId = body.CityId
+                    Email = body.Email ?? "",
+                    Password = body.Password ?? "",
+                    Role = body.Role ?? "",
+                    FirstName = body.FirstName ?? "",
+                    LastName = body.LastName ?? "",
+                    CityId = body.CityId ?? ""
                 };
                 if (body.Department is not null) req.Department = body.Department;
                 if (body.Phone is not null) req.Phone = body.Phone;
@@ -40,7 +40,7 @@ public static class AuthRoutes
             try
             {
                 var result = await auth.LoginAsync(
-                    new LoginRequest { Email = body.Email, Password = body.Password },
+                    new LoginRequest { Email = body.Email ?? "", Password = body.Password ?? "" },
                     ct.ToCallOptions());
 
                 return Results.Ok(new
@@ -64,7 +64,7 @@ public static class AuthRoutes
             try
             {
                 var result = await auth.RefreshAsync(
-                    new RefreshRequest { RefreshToken = body.RefreshToken },
+                    new RefreshRequest { RefreshToken = body.RefreshToken ?? "" },
                     ct.ToCallOptions());
 
                 return Results.Ok(new
@@ -87,7 +87,7 @@ public static class AuthRoutes
         {
             try
             {
-                var req = new LogoutRequest { RefreshToken = body.RefreshToken };
+                var req = new LogoutRequest { RefreshToken = body.RefreshToken ?? "" };
                 var accessToken = ExtractBearerToken(http) ?? body.AccessToken;
                 if (!string.IsNullOrWhiteSpace(accessToken))
                     req.AccessToken = accessToken;
@@ -99,7 +99,7 @@ public static class AuthRoutes
             {
                 return MapRpcError(ex);
             }
-        });
+        }).AllowAnonymous();
 
         app.MapGet("/api/me", (HttpContext ctx) =>
         {
@@ -127,7 +127,7 @@ public static class AuthRoutes
     };
 }
 
-record RegisterBody(string Email, string Password, string Role, string FirstName, string LastName, string CityId, string? Department, string? Phone);
-record LoginBody(string Email, string Password);
-record RefreshBody(string RefreshToken);
-record LogoutBody(string RefreshToken, string? AccessToken = null);
+record RegisterBody(string? Email, string? Password, string? Role, string? FirstName, string? LastName, string? CityId, string? Department, string? Phone);
+record LoginBody(string? Email, string? Password);
+record RefreshBody(string? RefreshToken);
+record LogoutBody(string? RefreshToken, string? AccessToken = null);

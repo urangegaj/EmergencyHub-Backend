@@ -22,7 +22,7 @@ public static class MedicalRoutes
             {
                 var req = new GetCasesRequest();
                 if (!string.IsNullOrWhiteSpace(status) &&
-                    Enum.TryParse<MedicalCaseStatus>(status, ignoreCase: true, out var parsed))
+                    ProtoEnumParse.TryParse<MedicalCaseStatus>(status, out var parsed))
                     req.Status = parsed;
 
                 var resp = await medical.GetCasesAsync(req, MedicalMeta(tenant, ct));
@@ -62,13 +62,13 @@ public static class MedicalRoutes
 
             try
             {
-                if (!Enum.TryParse<MedicalCaseStatus>(body.Status, ignoreCase: true, out var status))
+                if (!ProtoEnumParse.TryParse<MedicalCaseStatus>(body.Status, out var status))
                     return Results.BadRequest($"Unknown status: {body.Status}");
 
                 var req = new UpdateCaseRequest
                 {
                     EmergencyId = emergencyId,
-                    Status      = status
+                    Status = status
                 };
                 if (body.UnitId is not null) req.UnitId = body.UnitId;
 
@@ -106,7 +106,7 @@ public static class MedicalRoutes
 
             try
             {
-                if (!Enum.TryParse<MedicalUnitStatus>(body.Status, ignoreCase: true, out var status))
+                if (!ProtoEnumParse.TryParse<MedicalUnitStatus>(body.Status, out var status))
                     return Results.BadRequest($"Unknown status: {body.Status}");
 
                 var resp = await medical.UpdateUnitStatusAsync(
@@ -137,12 +137,12 @@ public static class MedicalRoutes
 
     private static IResult MapRpcError(RpcException ex) => ex.StatusCode switch
     {
-        StatusCode.NotFound        => Results.NotFound(ex.Status.Detail),
+        StatusCode.NotFound => Results.NotFound(ex.Status.Detail),
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
-        StatusCode.AlreadyExists   => Results.Conflict(ex.Status.Detail),
-        StatusCode.Unavailable     => Results.StatusCode(503),
-        _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
+        StatusCode.AlreadyExists => Results.Conflict(ex.Status.Detail),
+        StatusCode.Unavailable => Results.StatusCode(503),
+        _ => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }
 

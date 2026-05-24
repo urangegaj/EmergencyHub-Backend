@@ -111,31 +111,31 @@ public class EmergencyCompletionHandler(
 
         var payload = JsonSerializer.Serialize(new
         {
-            emergency_id         = emergencyId,
-            city_id              = cityId,
+            emergency_id = emergencyId,
+            city_id = cityId,
             description,
             address,
             departments_responded = departments,
-            created_at           = createdAt,
-            resolved_at          = resolvedAt,
-            duration_minutes     = durationMinutes
+            created_at = createdAt,
+            resolved_at = resolvedAt,
+            duration_minutes = durationMinutes
         });
 
         var report = new AssessmentReport
         {
-            Id            = Guid.NewGuid(),
-            EmergencyId   = emergencyId,
-            CityId        = cityId,
+            Id = Guid.NewGuid(),
+            EmergencyId = emergencyId,
+            CityId = cityId,
             ReportPayload = payload,
-            CreatedAt     = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
         };
 
         var (aiResponse, lastError) = await pipeline.RunAsync(report, ct);
 
         report.AiResponse = aiResponse;
-        report.LastError  = lastError;
-        report.Status     = aiResponse != null ? AssessmentReportStatus.Completed : AssessmentReportStatus.Failed;
-        report.SentAt     = aiResponse != null ? DateTime.UtcNow : null;
+        report.LastError = lastError;
+        report.Status = aiResponse != null ? AssessmentReportStatus.Completed : AssessmentReportStatus.Failed;
+        report.SentAt = aiResponse != null ? DateTime.UtcNow : null;
         report.RetryCount = 0;
 
         db.Reports.Add(report);

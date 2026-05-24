@@ -27,12 +27,12 @@ internal static class MedicalMapper
     {
         var response = new MedicalCaseResponse
         {
-            Id          = c.Id.ToString(),
+            Id = c.Id.ToString(),
             EmergencyId = c.EmergencyId.ToString(),
-            CityId      = c.CityId.ToString(),
-            Status      = (MedicalCaseStatus)c.Status,
-            CreatedAt   = c.CreatedAt.ToString("O"),
-            UpdatedAt   = c.UpdatedAt.ToString("O"),
+            CityId = c.CityId.ToString(),
+            Status = (MedicalCaseStatus)c.Status,
+            CreatedAt = c.CreatedAt.ToString("O"),
+            UpdatedAt = c.UpdatedAt.ToString("O"),
         };
 
         if (c.AssignedUnitId.HasValue)
@@ -49,9 +49,9 @@ internal static class MedicalMapper
 
     internal static MedicalUnitResponse MapUnit(MedicalUnit u) => new()
     {
-        Id     = u.Id.ToString(),
+        Id = u.Id.ToString(),
         CityId = u.CityId.ToString(),
-        Name   = u.Name,
+        Name = u.Name,
         Status = (MedicalUnitStatus)u.Status,
     };
 }

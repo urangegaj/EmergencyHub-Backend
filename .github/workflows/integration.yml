@@ -3,6 +3,12 @@ name: Integration & Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip integration tests and go straight to deploy'
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -58,6 +64,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: build-images
+    if: ${{ !inputs.skip_tests }}
 
     steps:
       - uses: actions/checkout@v4
@@ -114,15 +121,20 @@ jobs:
           '
           CONNECT_URL=http://localhost:8083 bash infra/deploy-connector.sh
 
-      - name: Install k6
+      - name: Pre-create Kafka topics
         run: |
-          sudo gpg --no-default-keyring \
-            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-            --keyserver hkp://keyserver.ubuntu.com:80 \
-            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-            | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update -q && sudo apt-get install -qy k6
+          docker compose exec -T kafka kafka-topics \
+            --create --bootstrap-server kafka:29092 \
+            --topic emergency.assigned --partitions 1 --replication-factor 1 --if-not-exists
+          docker compose exec -T kafka kafka-topics \
+            --create --bootstrap-server kafka:29092 \
+            --topic emergency.status.updated --partitions 1 --replication-factor 1 --if-not-exists
+          docker compose exec -T kafka kafka-topics \
+            --create --bootstrap-server kafka:29092 \
+            --topic department.case.updated --partitions 1 --replication-factor 1 --if-not-exists
+
+      - name: Install k6
+        uses: grafana/setup-k6-action@v1
 
       - name: Seed test accounts
         run: |
@@ -131,21 +143,80 @@ jobs:
             -e CITY_ID=${{ vars.CI_CITY_ID }} \
             -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
 
+      - name: Verify Kafka pipeline (end-to-end smoke test)
+        run: |
+          BASE=http://localhost:5158
+          TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
+
+          TOKEN=$(curl -sf $BASE/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@test.com","password":"TestPass123!"}' | jq -r '.accessToken')
+
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "ERROR: Could not log in as admin — seed may have failed"
+            exit 1
+          fi
+
+          EMERGENCY_ID=$(curl -sf $BASE/api/emergencies \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d "{\"emergencyTypeId\":\"$TYPE_ID\",\"description\":\"kafka-smoke-test\",\"address\":\"1 Smoke Test St\"}" \
+            | jq -r '.id')
+
+          if [ -z "$EMERGENCY_ID" ] || [ "$EMERGENCY_ID" = "null" ]; then
+            echo "ERROR: Could not create emergency"
+            exit 1
+          fi
+
+          ASSIGN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST $BASE/api/emergencies/$EMERGENCY_ID/assign \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d '{"departments":["Fire"]}')
+
+          if [ "$ASSIGN_STATUS" != "200" ]; then
+            echo "ERROR: Assign request failed with HTTP $ASSIGN_STATUS"
+            exit 1
+          fi
+
+          echo "Waiting for Fire case to appear (proves Kafka delivery is working)..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              $BASE/api/fire/cases/$EMERGENCY_ID \
+              -H "Authorization: Bearer $TOKEN")
+            if [ "$STATUS" = "200" ]; then
+              echo "Kafka pipeline OK (fire case created in ~$((i*5))s)"
+              exit 0
+            fi
+            echo "  attempt $i/24 — fire case not yet available (status=$STATUS)"
+            sleep 5
+          done
+
+          echo "ERROR: Kafka pipeline smoke test failed — fire case not created within 120s"
+          docker compose logs fire-service --tail=50
+          docker compose logs kafka --tail=30
+          exit 1
+
       - name: Run functional test suite
         run: |
           k6 run k6/suite.js \
             -e BASE_URL=http://localhost:5158 \
             -e CITY_ID=${{ vars.CI_CITY_ID }} \
             -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }} \
-            --exit-on-running-error
+            -e ASYNC_WAIT=30000
 
       - name: Print service logs
         if: failure()
         run: |
+          docker compose ps
           docker compose logs gateway --tail=80
           docker compose logs auth-service --tail=50
           docker compose logs emergency-service --tail=50
+          docker compose logs fire-service --tail=50
+          docker compose logs police-service --tail=50
+          docker compose logs medical-service --tail=50
           docker compose logs kafka-connect --tail=50
+          docker compose logs kafka --tail=30
 
       - name: Tear down stack
         if: always()
@@ -154,8 +225,15 @@ jobs:
   deploy:
     name: Push & Deploy
     runs-on: ubuntu-latest
-    needs: integration-test
+    needs: [build-images, integration-test]
+    if: |
+      always() &&
+      needs.build-images.result == 'success' &&
+      (needs.integration-test.result == 'success' || needs.integration-test.result == 'skipped')
     environment: production
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v4

@@ -29,7 +29,13 @@ public static class AdminRoutes
                     PageSize = pageSize ?? 20
                 };
                 var resp = await auth.ListUsersAsync(req, AuthMeta(tenant, ct));
-                return Results.Ok(resp);
+                return Results.Ok(new
+                {
+                    users = resp.Users,
+                    total = resp.TotalCount,
+                    page = resp.Page,
+                    pageSize = resp.PageSize,
+                });
             }
             catch (RpcException ex) { return MapRpcError(ex); }
         }).RequireAuthorization();
@@ -136,13 +142,13 @@ public static class AdminRoutes
 
     private static IResult MapRpcError(RpcException ex) => ex.StatusCode switch
     {
-        StatusCode.NotFound        => Results.NotFound(ex.Status.Detail),
+        StatusCode.NotFound => Results.NotFound(ex.Status.Detail),
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
-        StatusCode.AlreadyExists   => Results.Conflict(ex.Status.Detail),
+        StatusCode.AlreadyExists => Results.Conflict(ex.Status.Detail),
         StatusCode.PermissionDenied => Results.Forbid(),
-        StatusCode.Unavailable     => Results.StatusCode(503),
-        _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
+        StatusCode.Unavailable => Results.StatusCode(503),
+        _ => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }
 

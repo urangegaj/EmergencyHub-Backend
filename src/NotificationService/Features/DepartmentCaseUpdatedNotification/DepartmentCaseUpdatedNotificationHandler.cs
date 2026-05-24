@@ -38,7 +38,7 @@ public class DepartmentCaseUpdatedNotificationHandler(
             return;
 
         var departmentType = deptProp.GetString() ?? string.Empty;
-        var caseStatus     = statusProp.GetString() ?? string.Empty;
+        var caseStatus = statusProp.GetString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(caseStatus))
         {
@@ -107,9 +107,9 @@ public class DepartmentCaseUpdatedNotificationHandler(
 
     private static string FormatCaseEvent(string status) => status switch
     {
-        "OPEN"        => "opened",
+        "OPEN" => "opened",
         "IN_PROGRESS" => "moved in progress",
-        "CLOSED"      => "closed",
-        _             => "updated"
+        "CLOSED" => "closed",
+        _ => "updated"
     };
 }
