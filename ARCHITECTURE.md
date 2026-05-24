@@ -55,7 +55,7 @@ Emergency Hub is a distributed, multi-tenant emergency dispatch and monitoring p
 
                                                               ┌──────────────────────┐
                                                               │ Notification Service │
-                                                              │ - consumes notif.send│
+                                                              │ - domain Kafka topics│
                                                               │ - emails             │
                                                               │ - background jobs    │
                                                               └──────────────────────┘
@@ -116,9 +116,14 @@ Debezium runs as a separate Kafka Connect process watching the Emergency Service
 - Report is available for retrieval via `GetReport(emergencyId)` gRPC call from the gateway; frontend polls for it after the emergency reaches `RESOLVED`
 
 ### Notification Service
-- Consumes the `notification.send` Kafka topic
-- Handles email delivery (assignment notifications, resolution confirmations)
-- Tracks background job state with retry logic and exponential backoff
+- Consumes domain Kafka topics directly (`emergency.created`, `emergency.assigned`, `emergency.status.updated`, `department.case.updated`)
+- Handles email delivery (assignment notifications, status updates, case updates)
+- Resolves recipient emails via Auth Service gRPC (`GetUser`, `ListDepartmentUsers`)
+- Tracks notification records and background job state with retry logic and exponential backoff
+
+## Notification routing
+
+NotificationService consumes domain Kafka topics directly. No intermediate `notification.send` topic is used. Routing logic (which event maps to which recipients and email template) stays inside NotificationService because the domain is small and simple.
 
 ---
 
