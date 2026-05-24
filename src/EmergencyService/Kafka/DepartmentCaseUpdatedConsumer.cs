@@ -84,47 +84,85 @@ public sealed class DepartmentCaseUpdatedConsumer(
 
         if (statusStr.Equals("CLOSED", StringComparison.OrdinalIgnoreCase))
         {
-            assignment.ClosedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
-
-            if (emergency.Assignments.All(a => a.ClosedAt.HasValue))
+            if (!assignment.ClosedAt.HasValue)
             {
-                var oldStatus = emergency.Status;
-                emergency.Status = EmergencyStatus.Resolved;
-                emergency.UpdatedAt = DateTime.UtcNow;
-                emergency.Version++;
+                assignment.ClosedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+            }
+
+            db.ChangeTracker.Clear();
+            var resolved = false;
+            for (var attempt = 0; attempt < 3 && !resolved; attempt++)
+            {
+                var fresh = await db.Emergencies
+                    .Include(e => e.Assignments)
+                    .FirstOrDefaultAsync(e => e.Id == emergencyId, ct);
+
+                if (fresh is null
+                    || fresh.Status == EmergencyStatus.Resolved
+                    || !fresh.Assignments.All(a => a.ClosedAt.HasValue))
+                    break;
+
+                var oldStatus = fresh.Status;
+                fresh.Status = EmergencyStatus.Resolved;
+                fresh.UpdatedAt = DateTime.UtcNow;
+                fresh.Version++;
 
                 db.StatusHistory.Add(new EmergencyStatusHistory
                 {
-                    EmergencyId = emergency.Id,
+                    EmergencyId = fresh.Id,
                     Status = EmergencyStatus.Resolved
                 });
 
-                await db.SaveChangesAsync(ct);
-                await cache.InvalidateAsync($"emergencies:city:{emergency.CityId}", ct);
-                pollRegistry.Signal(emergency.Id);
-
-                await PublishStatusUpdatedAsync(emergency, oldStatus, EmergencyStatus.Resolved, ct);
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                    resolved = true;
+                    await cache.InvalidateAsync($"emergencies:city:{fresh.CityId}", ct);
+                    pollRegistry.Signal(fresh.Id);
+                    await PublishStatusUpdatedAsync(fresh, oldStatus, EmergencyStatus.Resolved, ct);
+                }
+                catch (DbUpdateConcurrencyException) when (attempt < 2)
+                {
+                    db.ChangeTracker.Clear();
+                }
             }
         }
-        else if (statusStr.Equals("IN_PROGRESS", StringComparison.OrdinalIgnoreCase)
-                 && emergency.Status == EmergencyStatus.Dispatched)
+        else if (statusStr.Equals("IN_PROGRESS", StringComparison.OrdinalIgnoreCase))
         {
-            emergency.Status = EmergencyStatus.InProgress;
-            emergency.UpdatedAt = DateTime.UtcNow;
-            emergency.Version++;
-
-            db.StatusHistory.Add(new EmergencyStatusHistory
+            db.ChangeTracker.Clear();
+            var transitioned = false;
+            for (var attempt = 0; attempt < 3 && !transitioned; attempt++)
             {
-                EmergencyId = emergency.Id,
-                Status = EmergencyStatus.InProgress
-            });
+                var fresh = await db.Emergencies
+                    .FirstOrDefaultAsync(e => e.Id == emergencyId, ct);
 
-            await db.SaveChangesAsync(ct);
-            await cache.InvalidateAsync($"emergencies:city:{emergency.CityId}", ct);
-            pollRegistry.Signal(emergency.Id);
+                if (fresh is null || fresh.Status != EmergencyStatus.Dispatched)
+                    break;
 
-            await PublishStatusUpdatedAsync(emergency, EmergencyStatus.Dispatched, EmergencyStatus.InProgress, ct);
+                fresh.Status = EmergencyStatus.InProgress;
+                fresh.UpdatedAt = DateTime.UtcNow;
+                fresh.Version++;
+
+                db.StatusHistory.Add(new EmergencyStatusHistory
+                {
+                    EmergencyId = fresh.Id,
+                    Status = EmergencyStatus.InProgress
+                });
+
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                    transitioned = true;
+                    await cache.InvalidateAsync($"emergencies:city:{fresh.CityId}", ct);
+                    pollRegistry.Signal(fresh.Id);
+                    await PublishStatusUpdatedAsync(fresh, EmergencyStatus.Dispatched, EmergencyStatus.InProgress, ct);
+                }
+                catch (DbUpdateConcurrencyException) when (attempt < 2)
+                {
+                    db.ChangeTracker.Clear();
+                }
+            }
         }
     }
 

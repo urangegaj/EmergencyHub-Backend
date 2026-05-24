@@ -180,6 +180,7 @@ public static class EmergencyRoutes
         StatusCode.InvalidArgument => Results.BadRequest(ex.Status.Detail),
         StatusCode.Unauthenticated => Results.Unauthorized(),
         StatusCode.AlreadyExists   => Results.Conflict(ex.Status.Detail),
+        StatusCode.Aborted         => Results.Conflict(ex.Status.Detail),
         _                          => Results.Problem(ex.Status.Detail, statusCode: 500)
     };
 }

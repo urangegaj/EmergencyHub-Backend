@@ -16,6 +16,10 @@ public class EmergencyDbContext(DbContextOptions<EmergencyDbContext> options) : 
             .HasIndex(e => new { e.CityId, e.Status });
 
         modelBuilder.Entity<Emergency>()
+            .Property(e => e.Version)
+            .IsConcurrencyToken();
+
+        modelBuilder.Entity<Emergency>()
             .Property(e => e.SearchVector)
             .HasColumnType("tsvector")
             .HasComputedColumnSql(

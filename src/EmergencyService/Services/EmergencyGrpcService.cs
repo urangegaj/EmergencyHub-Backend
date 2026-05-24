@@ -208,40 +208,54 @@ public class EmergencyGrpcService(
             departments.Add(parsed);
         }
 
-        var emergency = await db.Emergencies
-            .Include(e => e.EmergencyType)
-            .Include(e => e.Assignments)
-            .FirstOrDefaultAsync(e => e.Id == emergencyId && e.CityId == cityId)
-            ?? throw new RpcException(new Status(StatusCode.NotFound, "Emergency not found."));
-
-        var existingDepts = emergency.Assignments.Select(a => a.DepartmentType).ToHashSet();
+        var saved = false;
         var newAssignments = new List<EmergencyAssignment>();
+        Models.Emergency emergency = null!;
+        var oldStatus = EmergencyStatus.Reported;
 
-        foreach (var dept in departments)
+        for (var attempt = 0; attempt < 3 && !saved; attempt++)
         {
-            if (existingDepts.Contains(dept)) continue;
-            var assignment = new EmergencyAssignment
+            db.ChangeTracker.Clear();
+            newAssignments = [];
+
+            emergency = await db.Emergencies
+                .Include(e => e.EmergencyType)
+                .Include(e => e.Assignments)
+                .FirstOrDefaultAsync(e => e.Id == emergencyId && e.CityId == cityId)
+                ?? throw new RpcException(new Status(StatusCode.NotFound, "Emergency not found."));
+
+            var existingDepts = emergency.Assignments.Select(a => a.DepartmentType).ToHashSet();
+            foreach (var dept in departments)
+            {
+                if (existingDepts.Contains(dept)) continue;
+                var a = new EmergencyAssignment { EmergencyId = emergencyId, DepartmentType = dept };
+                db.Assignments.Add(a);
+                newAssignments.Add(a);
+            }
+
+            oldStatus = emergency.Status;
+            emergency.Status = EmergencyStatus.Dispatched;
+            emergency.UpdatedAt = DateTime.UtcNow;
+            emergency.Version++;
+
+            db.StatusHistory.Add(new EmergencyStatusHistory
             {
                 EmergencyId = emergencyId,
-                DepartmentType = dept
-            };
-            db.Assignments.Add(assignment);
-            newAssignments.Add(assignment);
+                Status = EmergencyStatus.Dispatched,
+                ChangedByUserId = assignedBy
+            });
+
+            try
+            {
+                await db.SaveChangesAsync();
+                saved = true;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 2) { }
         }
 
-        var oldStatus = emergency.Status;
-        emergency.Status = EmergencyStatus.Dispatched;
-        emergency.UpdatedAt = DateTime.UtcNow;
-        emergency.Version++;
+        if (!saved)
+            throw new RpcException(new Status(StatusCode.Aborted, "Concurrent modification conflict, please retry."));
 
-        db.StatusHistory.Add(new EmergencyStatusHistory
-        {
-            EmergencyId = emergencyId,
-            Status = EmergencyStatus.Dispatched,
-            ChangedByUserId = assignedBy
-        });
-
-        await db.SaveChangesAsync();
         await cache.InvalidateAsync(EmergencyCacheKey(cityId));
         pollRegistry.Signal(emergencyId);
 
