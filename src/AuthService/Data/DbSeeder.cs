@@ -11,6 +11,7 @@ public static class DbSeeder
 
         var city = new City
         {
+            Id = Guid.Parse("10000000-0000-0000-0000-000000000001"),
             Name = "Pristina",
             Region = "Prishtinë",
             Country = "Kosovo",

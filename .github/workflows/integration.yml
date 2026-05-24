@@ -1,0 +1,228 @@
+name: Integration & Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/emergency-hub
+
+jobs:
+  build-images:
+    name: Build image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - service: gateway
+            dockerfile: src/Gateway/Dockerfile
+          - service: auth-service
+            dockerfile: src/AuthService/Dockerfile
+          - service: emergency-service
+            dockerfile: src/EmergencyService/Dockerfile
+          - service: fire-service
+            dockerfile: src/FireService/Dockerfile
+          - service: police-service
+            dockerfile: src/PoliceService/Dockerfile
+          - service: medical-service
+            dockerfile: src/MedicalService/Dockerfile
+          - service: assessment-service
+            dockerfile: src/AssessmentService/Dockerfile
+          - service: notification-service
+            dockerfile: src/NotificationService/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.service }}
+        run: |
+          docker build \
+            -f ${{ matrix.dockerfile }} \
+            -t emergency-hub/${{ matrix.service }}:${{ github.sha }} \
+            -t emergency-hub/${{ matrix.service }}:latest \
+            .
+
+      - name: Save image tarball
+        run: docker save emergency-hub/${{ matrix.service }}:latest | gzip > /tmp/${{ matrix.service }}.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+          path: /tmp/${{ matrix.service }}.tar.gz
+          retention-days: 1
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build-images
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: /tmp/images
+          merge-multiple: true
+
+      - name: Load Docker images
+        run: |
+          for f in /tmp/images/*.tar.gz; do
+            docker load < "$f"
+          done
+
+      - name: Build kafka-connect image
+        run: docker build -f infra/kafka-connect/Dockerfile -t emergency-hub/kafka-connect:latest infra/kafka-connect
+
+      - name: Generate JWT keys
+        run: |
+          openssl genrsa -out /tmp/private.pem 2048
+          openssl rsa -in /tmp/private.pem -pubout -out /tmp/public.pem
+          echo "JWT_PRIVATE_KEY=$(base64 -w 0 /tmp/private.pem)" >> "$GITHUB_ENV"
+          echo "JWT_PUBLIC_KEY=$(base64 -w 0 /tmp/public.pem)"   >> "$GITHUB_ENV"
+          rm /tmp/private.pem /tmp/public.pem
+
+      - name: Start full stack
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+        env:
+          JWT_PRIVATE_KEY: ${{ env.JWT_PRIVATE_KEY }}
+          JWT_PUBLIC_KEY:  ${{ env.JWT_PUBLIC_KEY }}
+          OPENAI_API_KEY:  ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Wait for Gateway
+        run: |
+          timeout 180 bash -c '
+            until [ "$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:5158/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"x\",\"password\":\"x\"}")" != "000" ]; do
+              sleep 5
+            done
+          '
+
+      - name: Wait for Kafka Connect and register connector
+        run: |
+          timeout 180 bash -c '
+            until curl -sf http://localhost:8083/connectors > /dev/null 2>&1; do
+              sleep 5
+            done
+          '
+          CONNECT_URL=http://localhost:8083 bash infra/deploy-connector.sh
+
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -q && sudo apt-get install -qy k6
+
+      - name: Seed test accounts
+        run: |
+          k6 run k6/setup.js \
+            -e BASE_URL=http://localhost:5158 \
+            -e CITY_ID=${{ vars.CI_CITY_ID }} \
+            -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
+
+      - name: Run functional test suite
+        run: |
+          k6 run k6/suite.js \
+            -e BASE_URL=http://localhost:5158 \
+            -e CITY_ID=${{ vars.CI_CITY_ID }} \
+            -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }} \
+            --exit-on-running-error
+
+      - name: Print service logs
+        if: failure()
+        run: |
+          docker compose logs gateway --tail=80
+          docker compose logs auth-service --tail=50
+          docker compose logs emergency-service --tail=50
+          docker compose logs kafka-connect --tail=50
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v
+
+  deploy:
+    name: Push & Deploy
+    runs-on: ubuntu-latest
+    needs: integration-test
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: /tmp/images
+          merge-multiple: true
+
+      - name: Load Docker images
+        run: |
+          for f in /tmp/images/*.tar.gz; do
+            docker load < "$f"
+          done
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push images to GHCR
+        run: |
+          SERVICES=(gateway auth-service emergency-service fire-service police-service medical-service assessment-service notification-service)
+          for svc in "${SERVICES[@]}"; do
+            docker tag emergency-hub/${svc}:latest ${{ env.IMAGE_PREFIX }}/${svc}:${{ github.sha }}
+            docker tag emergency-hub/${svc}:latest ${{ env.IMAGE_PREFIX }}/${svc}:latest
+            docker push ${{ env.IMAGE_PREFIX }}/${svc}:${{ github.sha }}
+            docker push ${{ env.IMAGE_PREFIX }}/${svc}:latest
+          done
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Sync Kubernetes secrets
+        run: |
+          kubectl create secret generic emergency-hub-secrets \
+            --namespace=emergency-hub \
+            --from-literal=jwt-private-key="${{ secrets.JWT_PRIVATE_KEY }}" \
+            --from-literal=jwt-public-key="${{ secrets.JWT_PUBLIC_KEY }}" \
+            --from-literal=openai-api-key="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal=postgres-password="postgres" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Roll out new images
+        run: |
+          NS=emergency-hub
+          SHA=${{ github.sha }}
+          P=${{ env.IMAGE_PREFIX }}
+          kubectl set image deployment/gateway            gateway=$P/gateway:$SHA                         -n $NS
+          kubectl set image deployment/auth-service       auth-service=$P/auth-service:$SHA               -n $NS
+          kubectl set image deployment/emergency-service  emergency-service=$P/emergency-service:$SHA     -n $NS
+          kubectl set image deployment/fire-service       fire-service=$P/fire-service:$SHA               -n $NS
+          kubectl set image deployment/police-service     police-service=$P/police-service:$SHA           -n $NS
+          kubectl set image deployment/medical-service    medical-service=$P/medical-service:$SHA         -n $NS
+          kubectl set image deployment/assessment-service assessment-service=$P/assessment-service:$SHA   -n $NS
+          kubectl set image deployment/notification-service notification-service=$P/notification-service:$SHA -n $NS
+
+      - name: Wait for rollout
+        run: |
+          NS=emergency-hub
+          for dep in gateway auth-service emergency-service fire-service police-service medical-service assessment-service notification-service; do
+            kubectl rollout status deployment/$dep -n $NS --timeout=120s
+          done

@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
       - name: assessment-service
-        image: emergency-hub/assessment-service:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/urangegaj/emergency-hub/assessment-service:latest
+        imagePullPolicy: Always
         envFrom:
         - configMapRef:
             name: app-config

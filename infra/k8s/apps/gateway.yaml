@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
       - name: gateway
-        image: emergency-hub/gateway:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/urangegaj/emergency-hub/gateway:latest
+        imagePullPolicy: Always
         envFrom:
         - configMapRef:
             name: app-config
