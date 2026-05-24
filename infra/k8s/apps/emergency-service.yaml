@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
       - name: emergency-service
-        image: emergency-hub/emergency-service:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/urangegaj/emergency-hub/emergency-service:latest
+        imagePullPolicy: Always
         envFrom:
         - configMapRef:
             name: app-config

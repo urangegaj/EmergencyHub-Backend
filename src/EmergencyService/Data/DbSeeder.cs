@@ -10,10 +10,10 @@ public static class DbSeeder
         if (await db.EmergencyTypes.AnyAsync()) return;
 
         db.EmergencyTypes.AddRange(
-            new EmergencyType { Name = "FIRE" },
-            new EmergencyType { Name = "MEDICAL" },
-            new EmergencyType { Name = "CRIME" },
-            new EmergencyType { Name = "OTHER" }
+            new EmergencyType { Id = Guid.Parse("20000000-0000-0000-0000-000000000001"), Name = "FIRE" },
+            new EmergencyType { Id = Guid.Parse("20000000-0000-0000-0000-000000000002"), Name = "MEDICAL" },
+            new EmergencyType { Id = Guid.Parse("20000000-0000-0000-0000-000000000003"), Name = "CRIME" },
+            new EmergencyType { Id = Guid.Parse("20000000-0000-0000-0000-000000000004"), Name = "OTHER" }
         );
 
         await db.SaveChangesAsync();

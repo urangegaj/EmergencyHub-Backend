@@ -1,0 +1,110 @@
+name: Nightly Load Tests
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  load-test:
+    name: Load Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate JWT keys
+        run: |
+          openssl genrsa -out /tmp/private.pem 2048
+          openssl rsa -in /tmp/private.pem -pubout -out /tmp/public.pem
+          echo "JWT_PRIVATE_KEY=$(base64 -w 0 /tmp/private.pem)" >> "$GITHUB_ENV"
+          echo "JWT_PUBLIC_KEY=$(base64 -w 0 /tmp/public.pem)"   >> "$GITHUB_ENV"
+          rm /tmp/private.pem /tmp/public.pem
+
+      - name: Build all images
+        run: |
+          docker build -f src/Gateway/Dockerfile           -t emergency-hub/gateway:latest           .
+          docker build -f src/AuthService/Dockerfile       -t emergency-hub/auth-service:latest       .
+          docker build -f src/EmergencyService/Dockerfile  -t emergency-hub/emergency-service:latest  .
+          docker build -f src/FireService/Dockerfile       -t emergency-hub/fire-service:latest       .
+          docker build -f src/PoliceService/Dockerfile     -t emergency-hub/police-service:latest     .
+          docker build -f src/MedicalService/Dockerfile    -t emergency-hub/medical-service:latest    .
+          docker build -f src/AssessmentService/Dockerfile -t emergency-hub/assessment-service:latest .
+          docker build -f src/NotificationService/Dockerfile -t emergency-hub/notification-service:latest .
+          docker build -f infra/kafka-connect/Dockerfile   -t emergency-hub/kafka-connect:latest infra/kafka-connect
+
+      - name: Start full stack
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+        env:
+          JWT_PRIVATE_KEY: ${{ env.JWT_PRIVATE_KEY }}
+          JWT_PUBLIC_KEY:  ${{ env.JWT_PUBLIC_KEY }}
+          OPENAI_API_KEY:  ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Wait for Gateway
+        run: |
+          timeout 180 bash -c '
+            until [ "$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:5158/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"x\",\"password\":\"x\"}")" != "000" ]; do
+              sleep 5
+            done
+          '
+
+      - name: Wait for Kafka Connect and register connector
+        run: |
+          timeout 180 bash -c '
+            until curl -sf http://localhost:8083/connectors > /dev/null 2>&1; do
+              sleep 5
+            done
+          '
+          CONNECT_URL=http://localhost:8083 bash infra/deploy-connector.sh
+
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -q && sudo apt-get install -qy k6
+
+      - name: Seed test accounts
+        run: |
+          k6 run k6/setup.js \
+            -e BASE_URL=http://localhost:5158 \
+            -e CITY_ID=${{ vars.CI_CITY_ID }} \
+            -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
+
+      - name: Emergency spike
+        run: |
+          k6 run k6/scenarios/10_load/emergency_spike.js \
+            -e BASE_URL=http://localhost:5158 \
+            -e CITY_ID=${{ vars.CI_CITY_ID }} \
+            -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
+
+      - name: Concurrent dispatchers
+        run: |
+          k6 run k6/scenarios/10_load/concurrent_dispatchers.js \
+            -e BASE_URL=http://localhost:5158 \
+            -e CITY_ID=${{ vars.CI_CITY_ID }} \
+            -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
+
+      - name: Cache pressure
+        run: |
+          k6 run k6/scenarios/10_load/cache_pressure.js \
+            -e BASE_URL=http://localhost:5158 \
+            -e CITY_ID=${{ vars.CI_CITY_ID }} \
+            -e EMERGENCY_TYPE_ID=${{ vars.CI_EMERGENCY_TYPE_ID }}
+
+      - name: Print service logs
+        if: failure()
+        run: |
+          docker compose logs gateway --tail=80
+          docker compose logs emergency-service --tail=50
+          docker compose logs kafka-connect --tail=50
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v

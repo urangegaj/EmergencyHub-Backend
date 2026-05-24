@@ -1,0 +1,44 @@
+services:
+
+  kafka-connect:
+    ports:
+      - "8083:8083"
+
+  auth-service:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  emergency-service:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  fire-service:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  police-service:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  medical-service:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  assessment-service:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  notification-service:
+    environment:
+      DOTNET_ENVIRONMENT: Development
+
+  gateway:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  postgres:
+    volumes:
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgres_data:
