@@ -56,6 +56,11 @@ services:
     volumes:
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -68,6 +73,164 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: src/AuthService/Dockerfile
+    ports:
+      - "5001:5001"
+      - "5002:5002"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__AuthDb: "Host=postgres;Port=5432;Database=auth_db;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Jwt__PrivateKeyBase64: "${JWT_PRIVATE_KEY}"
+      Jwt__PublicKeyBase64: "${JWT_PUBLIC_KEY}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  emergency-service:
+    build:
+      context: .
+      dockerfile: src/EmergencyService/Dockerfile
+    ports:
+      - "5005:5005"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__EmergencyDb: "Host=postgres;Port=5432;Database=emergency_db;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Kafka__BootstrapServers: "kafka:29092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  police-service:
+    build:
+      context: .
+      dockerfile: src/PoliceService/Dockerfile
+    ports:
+      - "5004:5004"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__PoliceDb: "Host=postgres;Port=5432;Database=police_db;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Kafka__BootstrapServers: "kafka:29092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  fire-service:
+    build:
+      context: .
+      dockerfile: src/FireService/Dockerfile
+    ports:
+      - "5003:5003"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__FireDb: "Host=postgres;Port=5432;Database=fire_db;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Kafka__BootstrapServers: "kafka:29092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  medical-service:
+    build:
+      context: .
+      dockerfile: src/MedicalService/Dockerfile
+    ports:
+      - "5006:5006"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__MedicalDb: "Host=postgres;Port=5432;Database=medical_db;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Kafka__BootstrapServers: "kafka:29092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: src/NotificationService/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__NotificationDb: "Host=postgres;Port=5432;Database=notification_db;Username=postgres;Password=postgres"
+      Kafka__BootstrapServers: "kafka:29092"
+      Smtp__Host: "mailpit"
+      Smtp__Port: "1025"
+      Services__AuthService: "http://auth-service:5001"
+      Services__EmergencyService: "http://emergency-service:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      emergency-service:
+        condition: service_started
+
+  assessment-service:
+    build:
+      context: .
+      dockerfile: src/AssessmentService/Dockerfile
+    ports:
+      - "5007:5007"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__AssessmentDb: "Host=postgres;Port=5432;Database=assessment_db;Username=postgres;Password=postgres"
+      Kafka__BootstrapServers: "kafka:29092"
+      Services__FireService: "http://fire-service:5003"
+      Services__PoliceService: "http://police-service:5004"
+      Services__EmergencyService: "http://emergency-service:5005"
+      Services__MedicalService: "http://medical-service:5006"
+      OpenAI__ApiKey: "${OPENAI_API_KEY}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/Dockerfile
+    ports:
+      - "5158:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Redis: "redis:6379"
+      Jwt__JwksUri: "http://auth-service:5002/.well-known/jwks.json"
+      Services__AuthService: "http://auth-service:5001"
+      Services__EmergencyService: "http://emergency-service:5005"
+      Services__FireService: "http://fire-service:5003"
+      Services__PoliceService: "http://police-service:5004"
+      Services__MedicalService: "http://medical-service:5006"
+      Services__AssessmentService: "http://assessment-service:5007"
+    depends_on:
+      auth-service:
+        condition: service_started
+      emergency-service:
+        condition: service_started
+      police-service:
+        condition: service_started
+      fire-service:
+        condition: service_started
+      medical-service:
+        condition: service_started
+      assessment-service:
+        condition: service_started
 
 volumes:
   postgres_data:

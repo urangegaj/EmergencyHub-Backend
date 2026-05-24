@@ -10,7 +10,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 var jwksUri = builder.Configuration["Jwt:JwksUri"]!;
 using var http = new HttpClient();
-var jwksJson = await http.GetStringAsync(jwksUri);
+string jwksJson = null!;
+for (var attempt = 0; attempt < 10; attempt++)
+{
+    try { jwksJson = await http.GetStringAsync(jwksUri); break; }
+    catch { await Task.Delay(TimeSpan.FromSeconds(3)); }
+}
+if (jwksJson is null) throw new InvalidOperationException($"Could not reach JWKS endpoint at {jwksUri} after 10 attempts.");
 var jwks = new JsonWebKeySet(jwksJson);
 var signingKeys = jwks.GetSigningKeys();
 

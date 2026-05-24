@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: police-service
+  namespace: emergency-hub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: police-service
+  template:
+    metadata:
+      labels:
+        app: police-service
+    spec:
+      containers:
+      - name: police-service
+        image: emergency-hub/police-service:latest
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: app-config
+        env:
+        - name: ConnectionStrings__PoliceDb
+          value: "Host=postgres;Port=5432;Database=police_db;Username=postgres;Password=postgres"
+        ports:
+        - containerPort: 5004
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: police-service
+  namespace: emergency-hub
+spec:
+  selector:
+    app: police-service
+  ports:
+  - port: 5004
+    targetPort: 5004

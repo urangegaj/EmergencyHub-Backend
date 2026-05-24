@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: emergency-hub
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ConnectionStrings__Redis: "redis:6379"
+  Kafka__BootstrapServers: "kafka:29092"
+  Smtp__Host: "mailpit"
+  Smtp__Port: "1025"
+  Jwt__Issuer: "EmergencyHub.AuthService"
+  Jwt__Audience: "EmergencyHub"
+  Jwt__JwksUri: "http://auth-service:5002/.well-known/jwks.json"
+  Services__AuthService: "http://auth-service:5001"
+  Services__EmergencyService: "http://emergency-service:5005"
+  Services__FireService: "http://fire-service:5003"
+  Services__PoliceService: "http://police-service:5004"
+  Services__MedicalService: "http://medical-service:5006"
+  Services__AssessmentService: "http://assessment-service:5007"

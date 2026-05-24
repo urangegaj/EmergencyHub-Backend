@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: emergency-hub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: emergency-hub/notification-service:latest
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: app-config
+        env:
+        - name: DOTNET_ENVIRONMENT
+          value: Production
+        - name: ConnectionStrings__NotificationDb
+          value: "Host=postgres;Port=5432;Database=notification_db;Username=postgres;Password=postgres"
+        - name: Smtp__From
+          value: "noreply@emergencyhub.local"
