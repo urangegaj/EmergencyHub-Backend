@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
       - name: kafka-connect
-        image: emergency-hub/kafka-connect:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/urangegaj/emergency-hub/kafka-connect:latest
+        imagePullPolicy: Always
         env:
         - name: CONNECT_BOOTSTRAP_SERVERS
           value: kafka:29092

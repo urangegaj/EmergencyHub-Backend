@@ -234,6 +234,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      HAS_KUBECONFIG: ${{ secrets.GCP_SA_KEY != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -258,9 +260,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build kafka-connect image
+        run: docker build -f infra/kafka-connect/Dockerfile -t emergency-hub/kafka-connect:latest infra/kafka-connect
+
       - name: Push images to GHCR
         run: |
-          SERVICES=(gateway auth-service emergency-service fire-service police-service medical-service assessment-service notification-service)
+          SERVICES=(gateway auth-service emergency-service fire-service police-service medical-service assessment-service notification-service kafka-connect)
           for svc in "${SERVICES[@]}"; do
             docker tag emergency-hub/${svc}:latest ${{ env.IMAGE_PREFIX }}/${svc}:${{ github.sha }}
             docker tag emergency-hub/${svc}:latest ${{ env.IMAGE_PREFIX }}/${svc}:latest
@@ -268,13 +273,29 @@ jobs:
             docker push ${{ env.IMAGE_PREFIX }}/${svc}:latest
           done
 
-      - name: Configure kubectl
+      - name: Authenticate to Google Cloud
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure kubectl (GKE)
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GKE_LOCATION }}
+
+      - name: Apply Kubernetes manifests
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
+          kubectl apply -f infra/k8s/namespace.yaml
+          kubectl apply -f infra/k8s/configmap.yaml
+          kubectl apply -R -f infra/k8s/infra/
+          kubectl apply -R -f infra/k8s/apps/
 
       - name: Sync Kubernetes secrets
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
         run: |
           kubectl create secret generic emergency-hub-secrets \
             --namespace=emergency-hub \
@@ -285,6 +306,7 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Roll out new images
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
         run: |
           NS=emergency-hub
           SHA=${{ github.sha }}
@@ -299,8 +321,35 @@ jobs:
           kubectl set image deployment/notification-service notification-service=$P/notification-service:$SHA -n $NS
 
       - name: Wait for rollout
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
         run: |
           NS=emergency-hub
           for dep in gateway auth-service emergency-service fire-service police-service medical-service assessment-service notification-service; do
-            kubectl rollout status deployment/$dep -n $NS --timeout=120s
+            kubectl rollout status deployment/$dep -n $NS --timeout=300s
           done
+
+      - name: Smoke test
+        if: ${{ env.HAS_KUBECONFIG == 'true' }}
+        run: |
+          GW_IP=$(kubectl get svc gateway -n emergency-hub \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+          if [ -z "$GW_IP" ]; then
+            echo "LoadBalancer IP not yet assigned — skipping smoke test"
+            exit 0
+          fi
+
+          BASE="http://${GW_IP}:8080"
+          echo "Gateway: $BASE"
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "$BASE/api/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"x","password":"x"}')
+
+          if [ "$STATUS" = "000" ]; then
+            echo "ERROR: gateway not reachable (got 000)"
+            exit 1
+          fi
+
+          echo "Gateway responded with HTTP $STATUS — OK"

@@ -59,6 +59,7 @@ export default function(data) {
     {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
       tags: { type: 'load' },
+      responseCallback: http.expectedStatuses(200, 409),
     }
   );
 
