@@ -1,0 +1,10 @@
+services:
+  frontend:
+    build:
+      context: ../EmergencyHub-Frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      gateway:
+        condition: service_started
